@@ -1,0 +1,19 @@
+BASISVEREISTEN
+
+- Haskell -> ELC (2, 3)
+- Structured types, pattern matching (4, 5)
+- ELC -> LC (6)
+- Type checking, type inference (8, 9)
+- Graafvoorstelling en graafreductie (10, 11, 12)
+
+
+OPTIONEEL
+
+- List comprehensions (7)
+- Compilatie (13..)
+- Garbage collection (17)
+- Tail call elimination (21)
+
+
+BOEK
+Types and Programming Languages - B.C. Pierce
