@@ -1,6 +1,8 @@
 module LambdaTest where
 
 import Lambda
+import LambdaParse
+import LambdaShow
 import Test.QuickCheck
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -34,3 +36,8 @@ prop_alphaReducePreservesMeaning e = all (alphaConvertible (toNormalForm e))
                                          [ toNormalForm (alphaReduce e)
                                          , alphaReduce (toNormalForm e)]
                                      
+prop_showSimpleAndParse e = let (Right f) = parseLambdaExpr $ showSimple e
+                            in e == f
+
+prop_showExprAndParse e = let (Right f) = parseLambdaExpr $ showExpr e
+                          in e == f

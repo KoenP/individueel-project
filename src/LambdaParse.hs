@@ -30,11 +30,13 @@ exprParser = m_whiteSpace >> parseSubExpr <* eof
 
       parseAbstr = do m_reservedOp "\\"
                       symbols <- many1 m_identifier
-                      m_reservedOp "."
+                      m_whiteSpace
+                      char '.'
+                      m_whiteSpace
                       body    <- parseSubExpr
                       return $ foldr ((.) . Abstr) id symbols body
 
-      parseAppTerm = parseVar <|> m_parens parseSubExpr
+      parseAppTerm = parseVar <|> m_parens parseSubExpr <|> parseAbstr
       parseApp = do terms <- many1 parseAppTerm
                     return $ foldl1 App terms
 

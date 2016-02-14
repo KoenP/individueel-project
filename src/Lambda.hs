@@ -106,33 +106,3 @@ alphaReduce e = feed (glutton e Map.empty) symbols
                                   liftM2 App (glutton e m') (glutton f m')
       glutton (Abstr x e) m = do y <- nibbler id
                                  liftM (Abstr y) (glutton e $ Map.insert x y m)
-                                           
--- OUTPUT ----------------------------------------------------------------------
-showSimple :: Expr -> String
-showSimple (Var x) = x
-showSimple (Abstr s b) = "\\" ++ s ++ "." ++ showSimple b
-showSimple (App f x) = "(" ++ showSimple f ++ " " ++ showSimple x ++ ")"
-
-showExpr :: Expr -> String
-showExpr (Var x) = x
-showExpr e@(Abstr _ _) = let (symbols, body) = flattenNestedAbstrs e
-                         in "\\" ++ unwords symbols
-                                ++ "." ++ showExpr body
-showExpr e@(App _ _ ) = let terms = flattenNestedApps e
-                            showTerm t = case t of Var x -> x
-                                                   e     -> "(" ++ showExpr e ++ ")"
-                        in unwords (map showTerm terms)
-
-flattenNestedAbstrs :: Expr -> ([Symbol], Expr)
-flattenNestedAbstrs (Abstr s b) = let (ss, b') = flattenNestedAbstrs b
-                                  in (s:ss, b')
-flattenNestedAbstrs e           = ([], e)
-
-flattenNestedApps :: Expr -> [Expr]
-flattenNestedApps (App f x) = let terms = flattenNestedApps f 
-                              in terms ++ [x]
-flattenNestedApps e         = [e]
-
-
-printExpr :: Expr -> IO ()
-printExpr = putStrLn . showExpr

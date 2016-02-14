@@ -2,6 +2,9 @@ module Generic.Glutton where
 import Control.Monad
 import Control.Applicative
 
+-- A Glutton represents a function that consumes an unknown number of inputs
+-- from a given input sequence.
+-- Its typeclass instances allow for easy composition of such functions.
 data Glutton i o = Satiated o | Hungry (i -> Glutton i o)
 
 -- Satiate a glutton with a sequence of input items.
