@@ -17,6 +17,8 @@ import Text.Parsec.Language
 -- There are multiple valid notations for the lambda calculus.
 -- This parser adheres to the notation used in
 --   "The Implementation of Functional Programming Languages".
+-- Function application associates to the left.
+-- Abstractions extend as far right as possible.
 parseLambdaExpr :: String -> Either ParseError Expr
 parseLambdaExpr = parse exprParser ""
 
@@ -36,7 +38,7 @@ exprParser = m_whiteSpace >> parseSubExpr <* eof
                       body    <- parseSubExpr
                       return $ foldr ((.) . Abstr) id symbols body
 
-      parseAppTerm = parseVar <|> m_parens parseSubExpr <|> parseAbstr
+      parseAppTerm = parseVar <|> m_parens parseSubExpr -- <|> parseAbstr
       parseApp = do terms <- many1 parseAppTerm
                     return $ foldl1 App terms
 
