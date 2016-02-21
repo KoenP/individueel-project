@@ -1,4 +1,6 @@
 module Lambda where
+import Constant
+import Generic.Glutton
 import Control.Monad
 import Control.Applicative ((<*>), (<$>), (<*))
 import Data.Char
@@ -8,12 +10,12 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Generic.Glutton
 
 -- An expression of the lambda calculus.
-data Expr = Var Symbol
-          | App Expr Expr
-          | Abstr Symbol Expr
+data Expr = Var   Symbol
+          | Const Constant
+          | App   Expr      Expr
+          | Abstr Symbol    Expr
             deriving (Eq, Show)
 
 type Symbol = String
@@ -53,8 +55,8 @@ nonfreeSymbols e = filter (`Set.notMember` freeVariables e) symbols
 -- E[M/x] implementation (see Implementation of Functional Programming Languages p22).
 -- substitute e m x = e[m/x]
 substitute :: Expr -> Expr -> Symbol -> Expr
-substitute (Var y) m x = if x == y then m else (Var y)
-substitute (App e f) m x = App (substitute e m x) (substitute f m x)
+substitute (Var y) m x      = if x == y then m else (Var y)
+substitute (App e f) m x    = App (substitute e m x) (substitute f m x)
 substitute (Abstr y e) m x
     = case (x == y, x `occursFree` e, y `occursFree` m)
       of (True, _, _)        -> (Abstr x e)
@@ -106,3 +108,9 @@ alphaReduce e = feed (glutton e Map.empty) symbols
                                   liftM2 App (glutton e m') (glutton f m')
       glutton (Abstr x e) m = do y <- nibbler id
                                  liftM (Abstr y) (glutton e $ Map.insert x y m)
+
+
+-- Convenience function for when you want to make a set of nested applications
+-- from a list of expressions containing at least two expressions.
+makeApp :: Expr -> Expr -> [Expr] -> Expr
+makeApp e1 e2 es = foldr (flip App) (App e1 e2) es

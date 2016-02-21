@@ -1,35 +1,40 @@
-module EnrichedLambdaParse where
+module EnrichedLambdaParse (parseExpr) where
 import EnrichedLambda
+import Constant
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 
---------------------------------------------------------------------------------
--- GRAMMAR: see Implementation of Functional Programming Languages p40.
---------------------------------------------------------------------------------
-
--- Parses a String into an extended lambda expression, using the grammar described above.
+-- Parses a String into an extended lambda expression.
 -- There are multiple valid notations for the lambda calculus.
--- This parser adheres to the notation used in
---   "The Implementation of Functional Programming Languages".
--- Function application associates to the left.
+-- This parser mostly adheres to the notation used in
+--   "The Implementation of Functional Programming Languages" (p40).
+-- Function application and fatbar ([]) operator associate to the left.
+-- Function application has higher precedence than fatbar. It is recommended
+--   to use parens in stead of relying on this rule.
 -- Abstractions extend as far right as possible.
+-- There are a few deviations from the book notation:
+--   1. Lambda is written as backslash (\).
+--   2. Fatbar is written as an opening square bracket immediately followed by
+--      a closing square bracket ([]).
+--   3. The definitions in a let(rec) expression are separated by commas.
+--   4. Each entry in a case expression must be followed by a semicolon.
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse exprParser ""
 
 -- Parser for enriched lambda calculus.
--- TODO: parsing patterns.
 exprParser :: Parser Expr
 exprParser = m_whiteSpace >> expr <* eof
     where
-      expr =     (abstr       <?> "abstraction")
-             <|> (letExpr     <?> "let expression")
-             <|> (letrecExpr  <?> "letrec expression")
-             <|> (caseExpr    <?> "case expression")
-             <|> (try subexpr <?> "subexpression")
-             <|> (var         <?> "variable")
+      expr =     (abstr       <?> "abstraction"       )
+             <|> (letExpr     <?> "let expression"    )
+             <|> (letrecExpr  <?> "letrec expression" )
+             <|> (caseExpr    <?> "case expression"   )
+             <|> (try subexpr <?> "subexpression"     )
+             <|> (constExpr   <?> "constant"          )
+             <|> (varExpr     <?> "variable"          )
 
       -- Parses abstractions.
       -- The internal representation only provides single-argument abstractions,
@@ -37,17 +42,19 @@ exprParser = m_whiteSpace >> expr <* eof
       -- This parser parses multiple-argument abstractions into nested single-
       -- argument abstractions.
       abstr = do m_reservedOp "\\"
-                 symbols <- many1 m_identifier
+                 ps <- many1 pattern
                  m_whiteSpace >> char '.' >> m_whiteSpace
                  body <- expr
-                 return $ foldr ((.) . AbstrExpr) id symbols body
+                 return $ foldr ((.) . AbstrExpr) id ps body
 
       -- Parses a simple let expression.
+      -- A let expression with multiple comma-separated definitions is 
+      -- translated to a nesting of single-definition let expressions.
       letExpr = do m_reserved "let"
-                   d <- definition
+                   ds <- sepBy1 definition (m_reservedOp ",")
                    m_reserved "in"
                    e <- expr
-                   return (LetExpr d e)
+                   return $ foldr ((.) . LetExpr) id ds e
                           
       -- Parses a recursive let expression.
       -- There is a deviation from the book notation here: definitions
@@ -86,19 +93,34 @@ exprParser = m_whiteSpace >> expr <* eof
       subexpr = buildExpressionParser table term
 
       -- Terms in a subexpression are either variables or expressions in parens.
-      term = var <|> m_parens expr
+      term = constExpr <|> varExpr <|> m_parens expr
 
       -- Parses variables.
-      var = fmap fromSymbol m_identifier
+      varExpr = fmap VarExpr m_identifier
+
+      -- Parses constants.
+      constExpr = fmap ConstExpr constant
       
       -- Table of operators for fat bar ([]) and regular applications.
-      -- Weirdly, application seemed easiest to express as a binary whitespace
+      -- Weirdly, application seemed easiest to express as an infix whitespace
       -- operator.
-      table = [ [Infix (m_reserved "[]" >> return FatbarExpr) AssocLeft]
-              , [Infix (m_whiteSpace >> return AppExpr) AssocLeft]
+      table = [ [Infix (m_whiteSpace    >> return AppExpr    ) AssocLeft]
+              , [Infix (m_reserved "[]" >> return FatbarExpr ) AssocLeft]
               ]
       
-      pattern = fmap VarPat m_identifier
+      -- Parse a pattern - either a variable or a constructor followed by a
+      -- sequence of patterns.
+      pattern = fmap ConstPat constant
+                <|> fmap VarPat m_identifier
+                <|> m_parens (ConstrPat <$> m_identifier <*> many pattern)
+
+      -- Parse a constant, which can be an integer or one of a set of reserved
+      -- symbols.
+      constant = fmap IntConst integer
+                 <|> (m_reserved "+" >> return PlusConst)
+
+      -- Parse an integer (positive or negative whole number).
+      integer = option id (char '-' >> pure negate) <*> fmap read (many1 digit)
 
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.
@@ -113,8 +135,9 @@ TokenParser { parens     = m_parens
 -- Text.Parsec.Token module.
 -- This is used to generate the TokenParser.
 ldef :: LanguageDef st
-ldef = emptyDef { identStart      = alphaNum <|> oneOf "+-*/="
+ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
-                , reservedNames   = ["let", "letrec", "in", "case", "of"]
+                , reservedNames   = ["let", "letrec", "in", "case", "of", "+"]
                 , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
+                , caseSensitive   = True
                 }

@@ -1,11 +1,13 @@
 module LambdaShow where
 import Lambda
+import Constant
 
 -- Returns a string representing the expression.
 -- This simple function's output exactly matches the internal representation
 -- of the lambda expression, ie Abstrs have only 1 parameter etc.
 showSimple :: Expr -> String
 showSimple (Var x) = x
+showSimple (Const k) = showConstant k
 showSimple (Abstr s b) = "\\" ++ s ++ "." ++ showSimple b
 showSimple (App f x) = "(" ++ showSimple f ++ ") (" ++ showSimple x ++ ")"
 
@@ -14,14 +16,15 @@ showSimple (App f x) = "(" ++ showSimple f ++ ") (" ++ showSimple x ++ ")"
 -- Function application associates to the left.
 -- The body of an abstraction extends as far right as possible.
 showExpr :: Expr -> String
-showExpr (Var x) = x
+showExpr (Var x)       = x
+showExpr (Const k)     = showConstant k
 showExpr e@(Abstr _ _) = let (symbols, body) = flattenNestedAbstrs e
                          in "\\" ++ unwords symbols
                                 ++ "." ++ showExpr body
-showExpr e@(App _ _ ) = let terms = flattenNestedApps e
-                            showTerm t = case t of Var x -> x
-                                                   e     -> "(" ++ showExpr e ++ ")"
-                        in unwords (map showTerm terms)
+showExpr e@(App _ _ )  = let terms = flattenNestedApps e
+                             showTerm t = case t of Var x -> x
+                                                    e     -> "(" ++ showExpr e ++ ")"
+                         in unwords (map showTerm terms)
 
 -- Helper function for showExpr.
 -- If several abstractions are nested, it returns all parameters as a
