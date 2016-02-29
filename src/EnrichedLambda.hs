@@ -19,8 +19,30 @@ data Expr = VarExpr    Symbol
 -- patterns.
 data Pattern = VarPat    Symbol
              | ConstPat  Constant
-             | ConstrPat Symbol [Pattern]
+             | ConstrPat ConstrType Symbol [Pattern]
                deriving (Show, Eq)
 
+data ConstrType = SumConstr | ProductConstr deriving (Show, Eq)
 type Def = (Pattern, Expr) -- Definition
 type Symbol = String
+
+-- Convenience function to transform a list of patterns and an expression
+-- into a single nested abstraction.
+makeAbstr :: [Pattern] -> Expr -> Expr
+makeAbstr ps e = foldr ((.) . AbstrExpr) id ps e
+
+-- Convenience function for when you want to make a set of nested applications
+-- from a list of expressions containing at least two expressions.
+makeApp :: Expr -> Expr -> [Expr] -> Expr
+makeApp e1 e2 es = foldr (flip AppExpr) (AppExpr e1 e2) es
+
+-- Convenience function to transform a list of definitions and an expression
+-- into a single nested let expression.
+makeLet :: [Def] -> Expr -> Expr
+makeLet ds e = foldr ((.) . LetExpr) id ds e
+
+-- Returns true if the definition is simple, that is, it only contains simple
+-- assignments, no pattern matching.
+simpleDef :: Def -> Bool
+simpleDef (VarPat _, _) = True
+simpleDef _ = False

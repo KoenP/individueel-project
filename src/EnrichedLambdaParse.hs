@@ -1,4 +1,4 @@
-module EnrichedLambdaParse (parseExpr) where
+module EnrichedLambdaParse (parseExpr, unsafeParseExpr) where
 import EnrichedLambda
 import Constant
 import Text.Parsec
@@ -23,6 +23,11 @@ import Text.Parsec.Language
 --   4. Each entry in a case expression must be followed by a semicolon.
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parse exprParser ""
+
+-- Parse the input string under the assumption that it is parseable.
+-- Should only be used for testing.
+unsafeParseExpr :: String -> Expr
+unsafeParseExpr s = let (Right e) = parseExpr s in e
 
 -- Parser for enriched lambda calculus.
 exprParser :: Parser Expr
@@ -110,17 +115,21 @@ exprParser = m_whiteSpace >> expr <* eof
       
       -- Parse a pattern - either a variable or a constructor followed by a
       -- sequence of patterns.
+      -- TODO: all constructors are considered sum constructors for the time
+      --       being.
       pattern = fmap ConstPat constant
                 <|> fmap VarPat m_identifier
-                <|> m_parens (ConstrPat <$> m_identifier <*> many pattern)
+                <|> m_parens (ConstrPat SumConstr <$> m_identifier
+                                                  <*> many pattern)
 
-      -- Parse a constant, which can be an integer or one of a set of reserved
-      -- symbols.
+      -- Parse a constant, which for the time being, can only be an integer.
       constant = fmap IntConst integer
-                 <|> (m_reserved "+" >> return PlusConst)
 
       -- Parse an integer (positive or negative whole number).
-      integer = option id (char '-' >> pure negate) <*> fmap read (many1 digit)
+      integer = do
+        i <- option id (char '-' >> pure negate) <*> fmap read (many1 digit)
+        m_whiteSpace
+        return i
 
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.
@@ -137,7 +146,7 @@ TokenParser { parens     = m_parens
 ldef :: LanguageDef st
 ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
-                , reservedNames   = ["let", "letrec", "in", "case", "of", "+"]
+                , reservedNames   = ["let", "letrec", "in", "case", "of"]
                 , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
                 , caseSensitive   = True
                 }

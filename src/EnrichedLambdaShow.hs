@@ -28,6 +28,7 @@ showExpr e@(AbstrExpr _ _) = let (patterns, body) = flattenNestedAbstrExprs e
 showExpr e@(AppExpr _ _ )  = let terms = flattenNestedAppExprs e
                                  showTerm t = case t
                                               of VarExpr x -> x
+                                                 ConstExpr k -> showConstant k
                                                  e -> "(" ++ showExpr e ++ ")"
                              in unwords (map showTerm terms)
 showExpr (LetExpr d e)     = showLet showExpr d e
@@ -80,7 +81,7 @@ showCaseEntry showF (p, e) = showPattern p ++ " -> " ++ showF e ++ "; "
 showPattern :: Pattern -> String
 showPattern (VarPat s)       = s
 showPattern (ConstPat k)     = showConstant k
-showPattern (ConstrPat s ps) = "(" ++ unwords (s : map showPattern ps) ++ ")"
+showPattern (ConstrPat _ s ps) = "(" ++ unwords (s : map showPattern ps) ++ ")"
 
 -- Helper function for showExpr.
 -- If several abstractions are nested, it returns all parameters as a

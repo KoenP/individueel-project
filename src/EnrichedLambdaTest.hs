@@ -45,8 +45,9 @@ instance Arbitrary Pattern where
           pat n = do m <- choose (1, 3)
                      let subpat = subStructure pat n (m+1)
                      pats <- replicateM m subpat
+                     t <- elements [SumConstr, ProductConstr]
                      s <- arbitrarySymbol
-                     return (ConstrPat s pats)
+                     return (ConstrPat t s pats)
 prop_showSimpleAndParse e = let (Right f) = parseExpr $ showSimple e
                             in e == f
 

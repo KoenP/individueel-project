@@ -52,6 +52,10 @@ symbols = map (:"") ['a'..'z'] ++ ( flip (:) <$> symbols <*> ['a'..'z'] )
 nonfreeSymbols :: Expr -> [Symbol]
 nonfreeSymbols e = filter (`Set.notMember` freeVariables e) symbols
 
+-- Get a variable that does not occur free in the expression.
+getNewVariable :: Expr -> Symbol
+getNewVariable = head . nonfreeSymbols
+
 -- E[M/x] implementation (see Implementation of Functional Programming Languages p22).
 -- substitute e m x = e[m/x]
 substitute :: Expr -> Expr -> Symbol -> Expr
@@ -97,18 +101,23 @@ alphaReduce :: Expr -> Expr
 alphaReduce e = feed (glutton e Map.empty) symbols
     where
       glutton :: Expr -> Map Symbol Symbol -> Glutton Symbol Expr
-      glutton (Var x) m = case Map.lookup x m
-                          of Nothing  -> nibbler Var
-                             (Just y) -> Satiated (Var y)
-      glutton (App e f) m = let freeVarsInSubExprsSet = freeVariables e `Set.intersection` freeVariables f
-                                freeVarsInMSet        = Set.fromList $ Map.keys m
-                                newFreeVarsList       = Set.toList $ freeVarsInSubExprsSet `Set.difference` freeVarsInMSet
-                            in do newSymbols <- replicateM (length newFreeVarsList) (nibbler id)
-                                  let m' = m `Map.union` Map.fromList (zip newFreeVarsList newSymbols)
-                                  liftM2 App (glutton e m') (glutton f m')
+      glutton (Var x) m
+          = case Map.lookup x m
+            of Nothing  -> nibbler Var
+               (Just y) -> Satiated (Var y)
+      glutton (App e f) m
+          = let freeVarsInSubExprsSet = Set.intersection (freeVariables e)
+                                                         (freeVariables f)
+                freeVarsInMSet        = Set.fromList $ Map.keys m
+                newFreeVarsList       = Set.toList $ Set.difference
+                                                     freeVarsInSubExprsSet
+                                                     freeVarsInMSet
+            in do newSymbols <- replicateM (length newFreeVarsList) (nibbler id)
+                  let m' = m `Map.union` Map.fromList
+                                         (zip newFreeVarsList newSymbols)
+                  liftM2 App (glutton e m') (glutton f m')
       glutton (Abstr x e) m = do y <- nibbler id
                                  liftM (Abstr y) (glutton e $ Map.insert x y m)
-
 
 -- Convenience function for when you want to make a set of nested applications
 -- from a list of expressions containing at least two expressions.
