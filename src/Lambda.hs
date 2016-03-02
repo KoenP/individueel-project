@@ -29,6 +29,7 @@ etaReduce e = e
 -- Returns the set of all variables that occur in the expression.
 variables :: Expr -> Set Symbol
 variables (Var x) = Set.singleton x
+variables (Const k) = Set.empty
 variables (App e f) = Set.union (variables e) (variables f)
 variables (Abstr x e) = Set.insert x (variables e)
 
@@ -36,6 +37,7 @@ variables (Abstr x e) = Set.insert x (variables e)
 -- A variable x occurs free if it is not contained within an Abstr with symbol x.
 freeVariables :: Expr -> Set Symbol
 freeVariables (Var x)     = Set.singleton x
+freeVariables (Const k)   = Set.empty
 freeVariables (App e f)   = Set.union (freeVariables e) (freeVariables f)
 freeVariables (Abstr x e) = Set.delete x (freeVariables e)
 
@@ -122,4 +124,4 @@ alphaReduce e = feed (glutton e Map.empty) symbols
 -- Convenience function for when you want to make a set of nested applications
 -- from a list of expressions containing at least two expressions.
 makeApp :: Expr -> Expr -> [Expr] -> Expr
-makeApp e1 e2 es = foldr (flip App) (App e1 e2) es
+makeApp e1 e2 es = foldl App (App e1 e2) es

@@ -23,6 +23,7 @@ showExpr e@(Abstr _ _) = let (symbols, body) = flattenNestedAbstrs e
                                 ++ "." ++ showExpr body
 showExpr e@(App _ _ )  = let terms = flattenNestedApps e
                              showTerm t = case t of Var x -> x
+                                                    Const k -> showConstant k
                                                     e     -> "(" ++ showExpr e ++ ")"
                          in unwords (map showTerm terms)
 

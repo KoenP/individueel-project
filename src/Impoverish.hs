@@ -10,6 +10,9 @@ impoverish :: EL.Expr -> L.Expr
 -- An variable in ELC can be literally translated to a variable in LC.
 impoverish (EL.VarExpr v)     = L.Var v
 
+-- A constant in ELC can be literally translated to a constant in LC.
+impoverish (EL.ConstExpr k)   = L.Const k
+
 -- An application in ELC can be translated by recursively applying the
 -- impoverish algorithm to the operands.
 impoverish (EL.AppExpr e f)   = L.App (impoverish e) (impoverish f)
@@ -26,30 +29,32 @@ impoverish (EL.AppExpr e f)   = L.App (impoverish e) (impoverish f)
 -- 3. If p is a sum-constructor pattern
 --    \(s p1 ... pr).E <=> UNPACK-SUM-s (\p1 ... \pr.E)
 impoverish (EL.AbstrExpr p e)
-    = case p
+    = case p of
+        (VarPat x) -> L.Abstr x (impoverish e)
+
       -- Constant pattern.
-      of (ConstPat k)
-             -> let e' = impoverish e
-                    v  = head $ L.nonfreeSymbols e'
-                    -- b is (IF (= k v) E FAIL)
-                    b  = L.makeApp (L.Var "IF")
-                                   (L.App (L.App (L.Var "=")
-                                                 (L.Const k))
-                                          (L.Var v))
-                                   [ e'
-                                   , L.Var "FAIL"
-                                   ]
-                         in L.Abstr v b
+        (ConstPat k)
+            -> let e' = impoverish e
+                   v  = head $ L.nonfreeSymbols e'
+                   -- b is (IF (= k v) E FAIL)
+                   b  = L.makeApp (L.Var "IF")
+                                  (L.App (L.App (L.Var "=")
+                                                (L.Const k))
+                                         (L.Var v))
+                                  [ e'
+                                  , L.Var "FAIL"
+                                  ]
+                        in L.Abstr v b
 
          -- Product-constructor pattern.
-         (ConstrPat EL.ProductConstr t ps)
-             -> L.App (L.Var $ "UNPACK-PRODUCT-" ++ t)
-                      (impoverish $ EL.makeAbstr ps e)
+        (ConstrPat EL.ProductConstr t ps)
+            -> L.App (L.Var $ "UNPACK-PRODUCT-" ++ t)
+                     (impoverish $ EL.makeAbstr ps e)
 
          -- Sum-constructor pattern.
-         (ConstrPat EL.SumConstr s ps)
-             -> L.App (L.Var $ "UNPACK-SUM-" ++ s)
-                      (impoverish $ EL.makeAbstr ps e)
+        (ConstrPat EL.SumConstr s ps)
+            -> L.App (L.Var $ "UNPACK-SUM-" ++ s)
+                     (impoverish $ EL.makeAbstr ps e)
 
                                 
 -- Transform let expression.
@@ -117,7 +122,7 @@ impoverishIrrefutableProductLet s ps b e =
     where          
       v = L.getNewVariable (impoverish e)
       r = length ps
-      selections = map (EL.VarExpr . (("SEL-" ++ s) ++) . show) [1..r]
+      selections = map (EL.VarExpr . (("SEL-" ++ s ++ "-") ++) . show) [1..r]
 
 
 

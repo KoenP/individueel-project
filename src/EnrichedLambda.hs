@@ -1,4 +1,5 @@
 module EnrichedLambda where
+import Pattern
 import Constant
 
 -- XXX Constants not yet implemented.
@@ -19,10 +20,9 @@ data Expr = VarExpr    Symbol
 -- patterns.
 data Pattern = VarPat    Symbol
              | ConstPat  Constant
-             | ConstrPat ConstrType Symbol [Pattern]
+             | ConstrPat Symbol [Pattern]
                deriving (Show, Eq)
 
-data ConstrType = SumConstr | ProductConstr deriving (Show, Eq)
 type Def = (Pattern, Expr) -- Definition
 type Symbol = String
 
@@ -34,7 +34,7 @@ makeAbstr ps e = foldr ((.) . AbstrExpr) id ps e
 -- Convenience function for when you want to make a set of nested applications
 -- from a list of expressions containing at least two expressions.
 makeApp :: Expr -> Expr -> [Expr] -> Expr
-makeApp e1 e2 es = foldr (flip AppExpr) (AppExpr e1 e2) es
+makeApp e1 e2 es = foldl AppExpr (AppExpr e1 e2) es
 
 -- Convenience function to transform a list of definitions and an expression
 -- into a single nested let expression.
