@@ -1,6 +1,7 @@
 module EnrichedLambdaParse (parseExpr, unsafeParseExpr) where
 import EnrichedLambda
 import Constant
+import Pattern
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
@@ -21,16 +22,16 @@ import Text.Parsec.Language
 --      a closing square bracket ([]).
 --   3. The definitions in a let(rec) expression are separated by commas.
 --   4. Each entry in a case expression must be followed by a semicolon.
-parseExpr :: String -> Either ParseError Expr
+parseExpr :: String -> Either ParseError (Expr ())
 parseExpr = parse exprParser ""
 
 -- Parse the input string under the assumption that it is parseable.
 -- Should only be used for testing.
-unsafeParseExpr :: String -> Expr
+unsafeParseExpr :: String -> (Expr ())
 unsafeParseExpr s = let (Right e) = parseExpr s in e
 
 -- Parser for enriched lambda calculus.
-exprParser :: Parser Expr
+exprParser :: Parser (Expr ())
 exprParser = m_whiteSpace >> expr <* eof
     where
       expr =     (abstr       <?> "abstraction"       )
@@ -119,8 +120,8 @@ exprParser = m_whiteSpace >> expr <* eof
       --       being.
       pattern = fmap ConstPat constant
                 <|> fmap VarPat m_identifier
-                <|> m_parens (ConstrPat SumConstr <$> m_identifier
-                                                  <*> many pattern)
+                <|> m_parens (ConstrPat () <$> m_identifier
+                                           <*> many pattern)
 
       -- Parse a constant, which for the time being, can only be an integer.
       constant = fmap IntConst integer

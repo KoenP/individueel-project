@@ -4,7 +4,6 @@ module TypeDef where
 -- the enriched lambda calculus.
 
 import Symbol
-import Pattern
 import Control.Monad
 import Control.Applicative ((<$>),(<*>))
 import Text.Parsec
@@ -13,6 +12,7 @@ import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 import qualified Data.Map as M
+import Data.List (find, findIndex)
 
 data TypeDef = TypeDef { getTypeName         :: Symbol
                        , getTypeConstructors :: [Constructor]
@@ -23,33 +23,44 @@ data Constructor = Constructor { getConstrName   :: Symbol
                                } deriving (Show, Eq)
 data ProductOrSumType = SumType | ProductType deriving (Show, Eq)
 
-getConstructorArity :: [TypeDef] -> Symbol -> Maybe Int
-getConstructorArity tds = (`M.lookup` table)
-    where
-      table        = M.fromList (zip constrNames arities)
-      constrNames  = map getConstrName constructors
-      arities      = map (length . getConstrFields) constructors
-      constructors = getAllConstructors tds
+data ConstructorUndefinedError = ConstructorUndefinedError Symbol deriving (Show)
 
-getConstructorType :: [TypeDef] -> Symbol -> Maybe Symbol
+
+-- Get the type definition to which a constructor (lookup by symbol) belongs.
+getConstructorType :: [TypeDef] -> Symbol -> Maybe TypeDef
 getConstructorType tds = (`M.lookup` table)
     where
       table = M.fromList
               $ concat
-              $ zipWith (\cns tn -> (,) <$> cns <*> [tn]) constrNamesPerType typeNames
-      typeNames = map getTypeName tds
+              $ zipWith (\cns td -> (,) <$> cns <*> [td]) constrNamesPerType tds
       constrNamesPerType = map (map getConstrName . getTypeConstructors) tds
 
-getAllConstructors :: [TypeDef] -> [Constructor]
-getAllConstructors = concatMap getTypeConstructors
-                      
-sumOrProductType :: [TypeDef] -> Symbol -> Maybe ProductOrSumType
-sumOrProductType tds s = fmap (\td -> if (length $ getTypeConstructors td) > 1
-                                      then SumType
-                                      else ProductType)
-                              (M.lookup s table)
-    where table = M.fromList $ zip (map getTypeName tds) tds
-                      
+-- Check whether the type definition defines a product type or a sum type.
+-- A sum type is any type with more than one constructor.
+-- A product type has exactly one constructor.
+-- A type definition without constructors is invalid.
+productOrSumType :: TypeDef -> ProductOrSumType
+productOrSumType (TypeDef _ [_])   = ProductType
+productOrSumType (TypeDef _ (_:_:_)) = SumType 
+
+-- The constructors of a type are tagged so they can be distinguished at
+-- runtime. This function returns this tag, given a type definition and
+-- a symbol for a constructor of that type.
+getStructureTag :: TypeDef -> Symbol -> Maybe Int
+getStructureTag (TypeDef _ cs) s = findIndex ((==s) . getConstrName) cs
+
+-- Gets the arity (= number of fields) of a constructor, given its type
+-- definition and symbol.
+getConstructorArity :: TypeDef -> Symbol -> Maybe Int
+getConstructorArity (TypeDef _ cs) s
+    = length . getConstrFields <$> find ((==s) . getConstrName) cs
+
+-- Create an n-tuple type with a single product constructor.
+tupleType :: Int -> TypeDef
+tupleType n = TypeDef symbol [constructor]
+    where symbol = ("tup-" ++ show n)
+          constructor = Constructor ("TUP-" ++ show n) (take n symbols)
+          symbols = map (:"") ['a'..'z'] ++ (flip (:) <$> symbols <*> ['a'..'z'])
 
 --------------------------------------------------------------------------------
 -- PARSER ----------------------------------------------------------------------
@@ -92,3 +103,13 @@ ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , reservedOpNames = ["|", "=", ";"]
                 , caseSensitive   = True
                 }
+
+
+--------------------------------------------------------------------------------
+-- JUNK ------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+
+getAllConstructors :: [TypeDef] -> [Constructor]
+getAllConstructors = concatMap getTypeConstructors
+                      

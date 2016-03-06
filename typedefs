@@ -1,0 +1,4 @@
+data tree = LEAF a | BRANCH tree tree;
+data bool = TRUE | FALSE;
+data pair = PAIR a b;
+data list = NIL | CONS a list;

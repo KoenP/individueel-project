@@ -1,48 +1,65 @@
 module EnrichedLambda where
+import Symbol
 import Pattern
 import Constant
+import TypeDef
 
 -- XXX Constants not yet implemented.
     
 -- An expression in the enriched lambda calculus.
-data Expr = VarExpr    Symbol
-          | ConstExpr  Constant
-          | AppExpr    Expr     Expr
-          | AbstrExpr  Pattern  Expr
-          | LetExpr    Def      Expr
-          | LetrecExpr [Def]    Expr
-          | FatbarExpr Expr     Expr
-          | CaseExpr   Symbol   [(Pattern, Expr)]
-            deriving (Show, Eq)
+data Expr typeinfo = VarExpr    Symbol
+                   | ConstExpr  Constant
+                   | AppExpr    (Expr typeinfo)     (Expr typeinfo)
+                   | AbstrExpr  (Pattern typeinfo)  (Expr typeinfo)
+                   | LetExpr    (Def typeinfo)      (Expr typeinfo)
+                   | LetrecExpr [Def typeinfo]      (Expr typeinfo)
+                   | FatbarExpr (Expr typeinfo)     (Expr typeinfo)
+                   | CaseExpr   Symbol              [(Pattern typeinfo, Expr typeinfo)]
+                     deriving (Show, Eq)
 
--- Patterns occur in some enriched lambda calculus expressions.
--- They are either variables, constants, or constructors recursively combining 
--- patterns.
-data Pattern = VarPat    Symbol
-             | ConstPat  Constant
-             | ConstrPat Symbol [Pattern]
-               deriving (Show, Eq)
+type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
 
-type Def = (Pattern, Expr) -- Definition
-type Symbol = String
+-- Given an ELC expression with no type information, return the expression
+-- with type information.
+fillInTypeInfo :: (Symbol -> Maybe TypeDef)
+               -> Expr ()
+               -> Either ConstructorUndefinedError (Expr TypeDef)
+fillInTypeInfo g e =
+    case e of
+      (VarExpr x)         -> pure (VarExpr x)
+      (ConstExpr k)       -> pure (ConstExpr k)
+      (AppExpr e f)       -> AppExpr <$> h e <*> h f
+      (AbstrExpr pat e)   -> AbstrExpr <$> fillInPatTypeInfo g pat <*> h e
+      (LetExpr def e)     -> LetExpr <$> fillInDefTypeInfo def <*> h e
+      (LetrecExpr defs e) -> LetrecExpr <$> sequence (map fillInDefTypeInfo defs) <*> h e
+      (FatbarExpr e f)    -> FatbarExpr <$> h e <*> h f
+      (CaseExpr s cases)
+          -> CaseExpr s
+             <$> sequence
+                 (map (\(p,e)->(,) <$> fillInPatTypeInfo g p <*> h e) cases)
+    where
+      h = fillInTypeInfo g
+      fillInDefTypeInfo :: Def () -> Either ConstructorUndefinedError (Def TypeDef)
+      fillInDefTypeInfo (p,e) = (,) <$> fillInPatTypeInfo g p <*> h e
+
 
 -- Convenience function to transform a list of patterns and an expression
 -- into a single nested abstraction.
-makeAbstr :: [Pattern] -> Expr -> Expr
+makeAbstr :: [Pattern typeinfo] -> (Expr typeinfo) -> (Expr typeinfo)
 makeAbstr ps e = foldr ((.) . AbstrExpr) id ps e
 
 -- Convenience function for when you want to make a set of nested applications
 -- from a list of expressions containing at least two expressions.
-makeApp :: Expr -> Expr -> [Expr] -> Expr
+makeApp :: (Expr typeinfo) -> (Expr typeinfo) -> [(Expr typeinfo)] -> (Expr typeinfo)
 makeApp e1 e2 es = foldl AppExpr (AppExpr e1 e2) es
 
 -- Convenience function to transform a list of definitions and an expression
 -- into a single nested let expression.
-makeLet :: [Def] -> Expr -> Expr
+makeLet :: [Def typeinfo] -> (Expr typeinfo) -> (Expr typeinfo)
 makeLet ds e = foldr ((.) . LetExpr) id ds e
 
 -- Returns true if the definition is simple, that is, it only contains simple
 -- assignments, no pattern matching.
-simpleDef :: Def -> Bool
+simpleDef :: Def typeinfo -> Bool
 simpleDef (VarPat _, _) = True
 simpleDef _ = False
