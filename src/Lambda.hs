@@ -103,10 +103,17 @@ alphaReduce :: Expr -> Expr
 alphaReduce e = feed (glutton e Map.empty) symbols
     where
       glutton :: Expr -> Map Symbol Symbol -> Glutton Symbol Expr
+      -- The map keeps track of those variables that need to be assigned a
+      -- specific symbol in order for the expression to preserve meaning.
+      -- Symbols that do not occur in the map are assigned the next
+      -- arbitrary symbol.
       glutton (Var x) m
           = case Map.lookup x m
             of Nothing  -> nibbler Var
                (Just y) -> Satiated (Var y)
+
+      -- If a variable is free in both subexpressions, it should be assigned
+      -- the same symbol in both subexpressions.
       glutton (App e f) m
           = let freeVarsInSubExprsSet = Set.intersection (freeVariables e)
                                                          (freeVariables f)
@@ -118,6 +125,10 @@ alphaReduce e = feed (glutton e Map.empty) symbols
                   let m' = m `Map.union` Map.fromList
                                          (zip newFreeVarsList newSymbols)
                   liftM2 App (glutton e m') (glutton f m')
+
+      -- The parameter of an abstraction is assigned a new symbol, so
+      -- all occurences of that symbol within the body of the abstraction
+      -- should be replaced with the same symbol.
       glutton (Abstr x e) m = do y <- nibbler id
                                  liftM (Abstr y) (glutton e $ Map.insert x y m)
 
