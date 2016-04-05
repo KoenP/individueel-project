@@ -22,15 +22,15 @@ type Symbol = String
 
 -- Perform a single toplevel eta reduction.
 etaReduce :: Expr -> Expr
-etaReduce (Abstr x (App f@(Abstr _ _) (Var y))) 
-    | x == y && not (occursFree x f) = App f (Var x)
+etaReduce (Abstr x (App f (Var y))) 
+    | x == y && not (occursFree x f) = f
 etaReduce e = e
 
 -- Returns the set of all variables that occur in the expression.
 variables :: Expr -> Set Symbol
-variables (Var x) = Set.singleton x
-variables (Const k) = Set.empty
-variables (App e f) = Set.union (variables e) (variables f)
+variables (Var x)     = Set.singleton x
+variables (Const k)   = Set.empty
+variables (App e f)   = Set.union (variables e) (variables f)
 variables (Abstr x e) = Set.insert x (variables e)
 
 -- Returns the set of all variables that occur free in the expression.
@@ -81,10 +81,10 @@ isNormalForm (App e f)   = case e of (Abstr _ _) -> False
 -- Simple implementation of beta reduction.
 -- Performs a single beta reduction, if this is possible (normal order).
 betaReduce :: Expr -> Expr
-betaReduce (Var x) = Var x
-betaReduce (Abstr s e) = Abstr s (betaReduce e)
+betaReduce (Var x)             = Var x
+betaReduce (Abstr s e)         = Abstr s (betaReduce e)
 betaReduce (App (Abstr x e) m) = substitute e m x
-betaReduce (App e f) = App (betaReduce e) (betaReduce f)
+betaReduce (App e f)           = App (betaReduce e) (betaReduce f)
 
 -- Fully reduces the expression with normal order reduction.
 toNormalForm :: Expr -> Expr
