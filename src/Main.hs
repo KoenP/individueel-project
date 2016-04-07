@@ -8,9 +8,13 @@ import TypeDef
 import System.IO (hFlush, stdout)
 import System.Environment (getArgs)
 import Data.Bifunctor (first)
+import qualified ReductionEngine as RE
 
 main :: IO ()
 main = do
+  testReductionEngine
+
+  {-
   -- Read type definition file.
   [typedefFilePath] <- getArgs
   typedefs <- readTypeDefinitions typedefFilePath
@@ -28,6 +32,7 @@ main = do
           putChar '\n'
           hFlush stdout
           repl constrLookup
+   -}
 
 
 readTypeDefinitions :: FilePath -> IO [TypeDef]
@@ -43,3 +48,13 @@ readEnrichedLambda fp = do
   case input of
     (Left err) -> error (show err)
     (Right e)  -> return e
+
+
+testReductionEngine :: IO ()
+testReductionEngine = do
+  n1 <- RE.makeNumber 5
+  n2 <- RE.makeNumber 12
+  app <- RE.makeApp n1 n2
+  RE.printCell app
+  putStr "\n"
+  
