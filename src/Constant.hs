@@ -4,10 +4,10 @@ import Test.QuickCheck
 -- Describes a data type that represents constants and built-in functions.
 -- Can be used in LC, ELC or Haskell expressions.
 data Constant = IntConst Int
---              | PlusConst
---              | IfConst
---              | EqConst
---              | FailConst
+              | PlusConst
+              | MinusConst
+              | YCombConst
+              | SelectConst
                 deriving (Show, Eq)
 
 -- Translate the constant to a symbol as it occurs in (enriched)

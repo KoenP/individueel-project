@@ -1,5 +1,7 @@
 module Main where
 
+import qualified Lambda as L
+import Constant
 import EnrichedLambda
 import EnrichedLambdaParse
 import LambdaShow
@@ -9,10 +11,12 @@ import System.IO (hFlush, stdout)
 import System.Environment (getArgs)
 import Data.Bifunctor (first)
 import qualified ReductionEngine as RE
+import Reduce
 
 main :: IO ()
-main = do
-  testReductionEngine
+main = let expr = L.Const (IntConst 4)
+       in buildGraph expr
+
 
   {-
   -- Read type definition file.
@@ -49,12 +53,3 @@ readEnrichedLambda fp = do
     (Left err) -> error (show err)
     (Right e)  -> return e
 
-
-testReductionEngine :: IO ()
-testReductionEngine = do
-  n1 <- RE.makeNumber 5
-  n2 <- RE.makeNumber 12
-  app <- RE.makeApp n1 n2
-  RE.printCell app
-  putStr "\n"
-  

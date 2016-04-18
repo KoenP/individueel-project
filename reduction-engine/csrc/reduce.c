@@ -1,82 +1,8 @@
 #include "reduce.h"
+#include "cell.h"
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
-
-int* test(int* ptr) {
-	int* result = malloc(sizeof(int));
-	if (ptr == NULL) printf("ptr is null\n");
-	*result = 5;
-	return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CELL CONSTRUCTORS
-////////////////////////////////////////////////////////////////////////////////
-struct Cell* make_app(struct Cell* ptr1, struct Cell* ptr2) {
-	struct Cell* c	= malloc(sizeof(struct Cell));
-	c->tag		= APP;
-	c->f1.ptr	= ptr1;
-	c->f2.ptr	= ptr2;
-	return c;
-}
-struct Cell* make_abstr(Symbol sym, struct Cell* body) {
-	struct Cell* c	= malloc(sizeof(struct Cell));
-	c->tag		= ABSTR;
-	c->f1.sym	= sym;
-	c->f2.ptr	= body;
-	return c;
-}
-struct Cell* make_number(int num) {
-	struct Cell* c	= malloc(sizeof(struct Cell));
-	c->tag		= NUMBER;
-	c->f1.num	= num;
-	return c;
-}
-struct Cell* make_builtin(Builtin op) {
-	struct Cell* c	= malloc(sizeof(struct Cell));
-	c->tag		= BUILTIN;
-	c->f1.op	= op;
-	return c;
-}
-
-void _print_cell(struct Cell* cell) {
-	switch (cell->tag) {
-	case APP:
-		printf("(");
-		_print_cell(cell->f1.ptr);
-		printf(" ");
-		_print_cell(cell->f2.ptr);
-		printf(")");
-		break;
-	case NUMBER:
-		printf("%i", cell->f1.num);
-		break;
-	default:
-		printf("Unrecognized tag: %i\n", cell->tag);
-	}
-}
-void print_cell(struct Cell* cell) {
-	_print_cell(cell);
-	printf("\n");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// CELL PREDICATES
-////////////////////////////////////////////////////////////////////////////////
-int is_application(struct Cell* c) {
-	return c->tag == APP;
-}
-int is_abstraction(struct Cell* c) {
-	return c->tag == ABSTR;
-}
-int is_data_object(struct Cell* c) {
-	// TODO
-	return c->tag == NUMBER;
-}
-int is_builtin(struct Cell* c) {
-	return c->tag == BUILTIN;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPINE STACK MANIPULATION
@@ -115,31 +41,49 @@ int spine_stack_size(struct SpineStack* stack) {
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT REDEX
 ////////////////////////////////////////////////////////////////////////////////
-// Builds up the spine stack and returns a pointer to the redex.
 struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cell* cell) {
 	assert(NULL != cell);
 	struct SelectRedexResult result;
 	result.redex = NULL;
 	result.spine_stack = NULL;
+	printf("Cell: %p\n", cell);
+
+	switch (cell->tag) {
 
 	// If the cell under examination is an application, we must further
 	// unwind the spine while building up the spine stack.
-	if (is_application(cell)) {
+	case APP:
+		printf("APP\n");
 		spine_stack = push_spine_stack(spine_stack, cell);
 		return select_redex(spine_stack, cell->f1.ptr);
-	}
+
+	// If the tip is a lambda abstraction...
+	case ABSTR:
+		printf("ABSTR\n");
+		// If there are no arguments, then there is also no stack,
+		// so we return an empty result.
+		if (spine_stack == NULL) return result;
+
+		// If there is at least one argument, the previously pushed
+		// vertebra is the redex and the function should be pushed
+		// on the stack.
+		assert(spine_stack->cell);
+		result.redex = spine_stack->cell;
+		result.spine_stack = push_spine_stack(spine_stack, cell);
+		return result;
 
 	// If the cell at the tip of the spine is a data object, no further
 	// reduction is needed. The spine stack is destroyed.
-	else if (is_data_object(cell)) {
+	case DATA:
+		printf("DATA\n");
 		destroy_spine_stack(spine_stack);
 		return result;
-	}
 
 	// If the tip is a builtin operator, we go back up the spine 
 	// to find the redex, depending on the number of arguments required
 	// to reduce the operator.
-	else if (is_builtin(cell)) {
+	case BUILTIN:
+		printf("BUILTIN\n");
 		int nargs = BUILTIN_ARGUMENTS[cell->f1.op];
 
 		// If there are not enough arguments to the builtin function,
@@ -153,31 +97,107 @@ struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cel
 		// Move back up the spine to get to the redex.
 		// (-1) because we have not yet added the tip of the spine
 		// to the stack.
-		result.redex = spine_stack_nth_node(spine_stack, nargs - 1)->cell;
+		result.redex = spine_stack_nth_node(spine_stack, nargs-1)->cell;
 
 		// Complete the spine stack.
 		result.spine_stack = push_spine_stack(spine_stack, cell);
 
 		return result;
-	}
 
-	// If the tip is a lambda abstraction...
-	else if (is_abstraction(cell)) {
-		// If there are no arguments, then there is also no stack,
-		// so we return an empty result.
-		if (spine_stack == NULL) return result;
-
-		// If there is at least one argument, the previously pushed
-		// vertebra is the redex and the function should be pushed
-		// on the stack.
-		assert(spine_stack->cell);
-		result.redex = spine_stack->cell;
+	// Constructors are a special kind of builtin operator.
+	// The logic is similar to the BUILTIN case, only the number of
+	// arguments to the constructor is stored in the CONSTR cell itself.
+	case CONSTR:
+		printf("CONSTR\n");
+		StructuredDataTag tag = cell->f1.data_tag;
+		int nfields = cell->f2.num;
+		if (spine_stack_size(spine_stack) < nfields) {
+			destroy_spine_stack(spine_stack);
+			return result;
+		}
+		result.redex = spine_stack_nth_node(spine_stack, nfields-1)->cell;
 		result.spine_stack = push_spine_stack(spine_stack, cell);
 		return result;
+
+	default:
+		printf("DID NOT RECOGNIZE\n");
+		return result;
 	}
+}
+
+struct Cell* reduce_arg(struct SpineStack* spine_stack, int n) {
+	return reduce(spine_stack_nth_node(spine_stack, n)->cell->f2.ptr);
+}
+
+struct Cell* reduce_builtin(struct SpineStack* spine_stack) {
+	struct Cell* result = NULL;
+	struct Cell* operator = spine_stack->cell;
+
+	switch (operator->f1.op) {
+
+	// Add two numbers.
+	case PLUS: ;
+		int sum = reduce_arg(spine_stack, 1)->f1.num
+			+ reduce_arg(spine_stack, 2)->f1.num;
+		result = make_empty_cell();
+		set_cell_number(result, sum);
+		break;
+
+	case MINUS:
+		break;
+
+	case YCOMB:
+		break;
+
+	case SELECT: ;
+		int index = reduce_arg(spine_stack, 1)->f1.num;
+		struct Cell* data_cell = reduce_arg(spine_stack, 2);
+		assert(data_cell->tag == DATA);
+		result = select_data_field(data_cell, index);
+		break;
+	}
+
 	return result;
 }
 
-struct Cell* reduce(struct Cell* redex) {
-	return NULL;
+struct Cell* reduce_constructor(struct SpineStack* spine_stack) {
+	struct Cell* constr = spine_stack->cell;
+	StructuredDataTag tag = get_constr_data_tag(constr);
+	int nfields = get_constr_nfields(constr);
+
+	struct Cell* result = make_empty_cell();
+	set_cell_empty_data(result, tag, nfields);
+
+	for (int i = 0; i < nfields; i++) {
+		struct Cell* value = reduce_arg(spine_stack, i+1);
+		set_data_field(result, i, value);
+	}
+
+	return result;
+}
+
+struct Cell* reduce(struct Cell* cell) {
+	struct SelectRedexResult srr = select_redex(NULL, cell);
+	printf("Reducing %p ...\n", cell);
+	printf("Redex = %p\n", srr.redex);
+
+	// If there is no redex, the expression is already fully reduced.
+	if (srr.redex == NULL)
+		return cell;
+
+	struct Cell* operator = srr.spine_stack->cell;
+	struct Cell* result = NULL;
+
+	switch (operator->tag) {
+	case BUILTIN:
+		result = reduce_builtin(srr.spine_stack);
+		break;
+	case DATA:
+		result = srr.redex;
+		break;
+	}
+
+	destroy_spine_stack(srr.spine_stack);
+	printf("RESULT = \n\t"); print_cell(result);
+	return result;
 }

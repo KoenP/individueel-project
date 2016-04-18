@@ -15,15 +15,18 @@ extra-source-files:  reduction-engine/csrc/reduce.c
                      reduction-engine/include/reduce.h
 
 library
+  ghc-options:         -optc -Wall
   hs-source-dirs:      reduction-engine/src
   exposed-modules:     ReductionEngine
   c-sources:           reduction-engine/csrc/reduce.c
+                       reduction-engine/csrc/cell.c
   include-dirs:        reduction-engine/include
-  includes:            reduce.h
+  includes:            reduce.h,
+                       cell.h
   build-depends:       base >= 4.7 && < 5
   default-language:    Haskell2010
 
-executable individueel-project
+executable compiler
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
