@@ -8,15 +8,25 @@ data Constant = IntConst Int
               | MinusConst
               | YCombConst
               | SelectConst
+              | ConstrConst DataTag Size
+              | EqConst
                 deriving (Show, Eq)
+
+newtype DataTag = DataTag Int deriving (Eq)
+instance Show DataTag where
+    show (DataTag i) = show i
+type Size = Int
 
 -- Translate the constant to a symbol as it occurs in (enriched)
 -- lambda calculus.
 showConstant :: Constant -> String
 showConstant (IntConst n) = show n
---showConstant PlusConst    = "+"
---showConstant IfConst      = "IF"
---showConstant FailConst    = "FAIL"
+showConstant PlusConst    = "+"
+showConstant MinusConst = "-"
+showConstant YCombConst = "Y"
+showConstant SelectConst = "SELECT"
+showConstant (ConstrConst (DataTag i) size) = "CONSTR-" ++ show i ++ "-" ++ show size
+showConstant EqConst = "="
 
 -- Arbitrary instance for QuickCheck.
 instance Arbitrary Constant where

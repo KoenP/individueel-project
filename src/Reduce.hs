@@ -6,8 +6,7 @@ import qualified Lambda as L
 import Constant
 
 reduce :: L.Expr -> IO ()
-reduce (L.Var x) = undefined
-reduce (L.Const c) = undefined
+reduce expr = buildGraph expr >>= RE.reduce >>= RE.printCell
 
 buildGraph :: L.Expr -> IO RE.CellPtr
 buildGraph (L.Var sym) = RE.makeVar sym
@@ -21,6 +20,7 @@ buildGraph (L.App e f) = do
   
 buildGraphFromConstant :: Constant -> IO RE.CellPtr
 buildGraphFromConstant (IntConst i) = RE.makeNumber i
+buildGraphFromConstant (ConstrConst (DataTag tag) size) = RE.makeConstructor tag size
 buildGraphFromConstant c = RE.makeBuiltin (mapBuiltin c)
 
 
@@ -29,8 +29,8 @@ buildGraphFromConstant c = RE.makeBuiltin (mapBuiltin c)
 --	      YCOMB = 2,
 --	      SELECT = 3,
 mapBuiltin :: Constant -> Int
-mapBuiltin (IntConst i) = undefined
 mapBuiltin PlusConst = 0
 mapBuiltin MinusConst = 1
 mapBuiltin YCombConst = 2
 mapBuiltin SelectConst = 3
+mapBuiltin EqConst = 4

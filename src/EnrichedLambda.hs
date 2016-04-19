@@ -3,6 +3,8 @@ import Symbol
 import Pattern
 import Constant
 import TypeDef
+import Control.Monad (join)
+import Data.List (find)
 
 -- XXX Constants not yet implemented.
     
@@ -26,7 +28,7 @@ fillInTypeInfo :: (Symbol -> Maybe TypeDef)
                -> Either ConstructorUndefinedError (Expr TypeDef)
 fillInTypeInfo g e =
     case e of
-      (VarExpr x)         -> pure (VarExpr x)
+      (VarExpr x)         -> pure (maybe (VarExpr x) ConstExpr (getConstrConstant g x))
       (ConstExpr k)       -> pure (ConstExpr k)
       (AppExpr e f)       -> AppExpr <$> h e <*> h f
       (AbstrExpr pat e)   -> AbstrExpr <$> fillInPatTypeInfo g pat <*> h e
@@ -42,6 +44,13 @@ fillInTypeInfo g e =
       fillInDefTypeInfo :: Def () -> Either ConstructorUndefinedError (Def TypeDef)
       fillInDefTypeInfo (p,e) = (,) <$> fillInPatTypeInfo g p <*> h e
 
+getConstrConstant :: (Symbol -> Maybe TypeDef) -> Symbol -> Maybe Constant
+getConstrConstant f s = join $ getFromTypeDef <$> f s
+    where
+      getFromTypeDef :: TypeDef -> Maybe Constant
+      getFromTypeDef (TypeDef _ constrs) = do
+        (index, constr) <- find ((==s) . getConstrName . snd) (zip [0..] constrs)
+        return $ ConstrConst (DataTag index) (length $ getConstrFields constr)
 
 -- Convenience function to transform a list of patterns and an expression
 -- into a single nested abstraction.

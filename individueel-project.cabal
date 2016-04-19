@@ -34,12 +34,16 @@ executable compiler
                        EnrichedLambda,
                        EnrichedLambdaParse,
                        Generic.Glutton,
+                       Generic.Varia,
                        Impoverish,
                        Lambda,
                        LambdaShow,
+                       LambdaViz,
                        Pattern,
                        Symbol,
-                       TypeDef
+                       TypeDef,
+                       Reduce
+                       
 
   build-depends:       QuickCheck,
                        base >= 4.7 && < 5,
@@ -47,4 +51,6 @@ executable compiler
                        parsec,
                        random,
                        bifunctors,
+                       graphviz,
+                       fgl,
                        individueel-project

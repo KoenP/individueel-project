@@ -116,8 +116,6 @@ exprParser = m_whiteSpace >> expr <* eof
       
       -- Parse a pattern - either a variable or a constructor followed by a
       -- sequence of patterns.
-      -- TODO: all constructors are considered sum constructors for the time
-      --       being.
       pattern = fmap ConstPat constant
                 <|> fmap VarPat m_identifier
                 <|> m_parens (ConstrPat () <$> m_identifier
@@ -125,12 +123,15 @@ exprParser = m_whiteSpace >> expr <* eof
 
       -- Parse a constant, which for the time being, can only be an integer.
       constant = fmap IntConst integer
+                 <|> (m_reserved "+"      >> return PlusConst)
+                 <|> (m_reserved "-"      >> return MinusConst)
+                 <|> (m_reserved "SELECT" >> return SelectConst)
+                 <|> (m_reserved "="      >> return EqConst)
 
       -- Parse an integer (positive or negative whole number).
-      integer = do
-        i <- option id (char '-' >> pure negate) <*> fmap read (many1 digit)
-        m_whiteSpace
-        return i
+      -- Negative numbers should be parenthesized.
+      integer = (fmap read (many1 digit) <* m_whiteSpace)
+                <|> (try $ m_parens $ option id (char '-' >> pure negate) <*> integer)
 
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.
@@ -147,7 +148,8 @@ TokenParser { parens     = m_parens
 ldef :: LanguageDef st
 ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
-                , reservedNames   = ["let", "letrec", "in", "case", "of"]
+                , reservedNames   = ["let", "letrec", "in", "case", "of",
+                                     "+", "-", "="]
                 , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
                 , caseSensitive   = True
                 }

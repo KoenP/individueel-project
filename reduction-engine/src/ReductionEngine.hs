@@ -1,5 +1,14 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module ReductionEngine (CellPtr, makeNumber, makeApp, printCell, reduce, testReductionEngine) where
+module ReductionEngine ( CellPtr
+                       , makeVar
+                       , makeNumber
+                       , makeApp
+                       , makeAbstr
+                       , makeBuiltin
+                       , makeConstructor
+                       , printCell
+                       , reduce
+                       , testReductionEngine) where
 
 import Foreign.C
 import Foreign.C.String

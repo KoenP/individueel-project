@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPINE STACK MANIPULATION
@@ -46,9 +47,14 @@ struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cel
 	struct SelectRedexResult result;
 	result.redex = NULL;
 	result.spine_stack = NULL;
-	printf("Cell: %p\n", cell);
+	printf("select_redex: Cell = %p, ", cell);
 
 	switch (cell->tag) {
+	// If the tip of the spine is a variable, no further reduction is
+	// possible.
+	case VAR:
+		printf("VAR\n");
+		return result;
 
 	// If the cell under examination is an application, we must further
 	// unwind the spine while building up the spine stack.
@@ -111,12 +117,13 @@ struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cel
 		printf("CONSTR\n");
 		StructuredDataTag tag = cell->f1.data_tag;
 		int nfields = cell->f2.num;
+
 		if (spine_stack_size(spine_stack) < nfields) {
 			destroy_spine_stack(spine_stack);
 			return result;
 		}
-		result.redex = spine_stack_nth_node(spine_stack, nfields-1)->cell;
 		result.spine_stack = push_spine_stack(spine_stack, cell);
+		result.redex = spine_stack_nth_node(result.spine_stack, nfields)->cell;
 		return result;
 
 	default:
@@ -127,6 +134,43 @@ struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cel
 
 struct Cell* reduce_arg(struct SpineStack* spine_stack, int n) {
 	return reduce(spine_stack_nth_node(spine_stack, n)->cell->f2.ptr);
+}
+
+struct Cell* _replace(struct Cell* c, char* sym, struct Cell* arg) {
+	switch(c->tag) {
+	case VAR:
+		// Variable is substituted for argument iff the symbols are
+		// the same.
+		printf("testje, VAR = %s\n", get_var_symbol(c));
+		if (strcmp(get_var_symbol(c), sym) == 0) {
+			printf("testje2\n");
+			return arg;
+		}
+		else return c;
+	case APP:
+		// Recursively apply replace algorithm to children.
+		c->f1.ptr = _replace(c->f1.ptr, sym, arg);
+		c->f2.ptr = _replace(c->f2.ptr, sym, arg);
+		return c;
+	case ABSTR:
+		// Apply replacement to body iff parameter symbol is not
+		// the symbol being replaced. The occurrences of sym in the body
+		// of an abstraction with sym as parameter are bound to the parameter
+		// of the function.
+		if (strcmp(get_abstr_symbol(c), sym) != 0)
+			c->f2.ptr = _replace(c->f2.ptr, sym, arg);
+		return c;
+	default:
+		return c;
+	}
+}
+struct Cell* reduce_abstr(struct SpineStack* spine_stack) {
+	printf("Reduce abstr with param %s\n", get_abstr_symbol(spine_stack->cell));
+	struct Cell* abstr = spine_stack->cell;
+	char* sym = get_abstr_symbol(abstr);
+	struct Cell* body = get_abstr_body(abstr);
+	struct Cell* arg = get_app_operand(spine_stack_nth_node(spine_stack, 1)->cell);
+	return _replace(body, sym, arg);
 }
 
 struct Cell* reduce_builtin(struct SpineStack* spine_stack) {
@@ -143,7 +187,11 @@ struct Cell* reduce_builtin(struct SpineStack* spine_stack) {
 		set_cell_number(result, sum);
 		break;
 
-	case MINUS:
+	case MINUS: ;
+		int diff = reduce_arg(spine_stack, 1)->f1.num
+			 - reduce_arg(spine_stack, 2)->f1.num;
+		result = make_empty_cell();
+		set_cell_number(result, diff);
 		break;
 
 	case YCOMB:
@@ -161,13 +209,16 @@ struct Cell* reduce_builtin(struct SpineStack* spine_stack) {
 }
 
 struct Cell* reduce_constructor(struct SpineStack* spine_stack) {
+	printf("reduce_constructor...\n");
 	struct Cell* constr = spine_stack->cell;
 	StructuredDataTag tag = get_constr_data_tag(constr);
 	int nfields = get_constr_nfields(constr);
 
+	// Create an empty data cell.
 	struct Cell* result = make_empty_cell();
 	set_cell_empty_data(result, tag, nfields);
 
+	// Find arguments in the spine stack, add them to the data cell.
 	for (int i = 0; i < nfields; i++) {
 		struct Cell* value = reduce_arg(spine_stack, i+1);
 		set_data_field(result, i, value);
@@ -177,9 +228,8 @@ struct Cell* reduce_constructor(struct SpineStack* spine_stack) {
 }
 
 struct Cell* reduce(struct Cell* cell) {
+	printf("CALL TO REDUCE\n");
 	struct SelectRedexResult srr = select_redex(NULL, cell);
-	printf("Reducing %p ...\n", cell);
-	printf("Redex = %p\n", srr.redex);
 
 	// If there is no redex, the expression is already fully reduced.
 	if (srr.redex == NULL)
@@ -188,16 +238,30 @@ struct Cell* reduce(struct Cell* cell) {
 	struct Cell* operator = srr.spine_stack->cell;
 	struct Cell* result = NULL;
 
+	printf("####################\n");
+	printf("REDUCING\tCELL %p\n\t\tREDEX %p with tag = %i\n\t\tOPERATOR %p with tag = %i\n", cell, srr.redex, srr.redex->tag, operator, operator->tag);
+
 	switch (operator->tag) {
+	case ABSTR:
+		result = reduce_abstr(srr.spine_stack);
+		break;
 	case BUILTIN:
 		result = reduce_builtin(srr.spine_stack);
 		break;
 	case DATA:
 		result = srr.redex;
 		break;
+	case CONSTR:
+		result = reduce_constructor(srr.spine_stack);
+		break;
+	default:
+		printf("REDUCE: tag not recognized\n");
 	}
 
+	printf("RESULT %p = \n\t", result); print_cell(result);
+	*srr.redex = *result;
 	destroy_spine_stack(srr.spine_stack);
-	printf("RESULT = \n\t"); print_cell(result);
-	return result;
+
+	printf("####################\n");
+	return reduce(cell);
 }
