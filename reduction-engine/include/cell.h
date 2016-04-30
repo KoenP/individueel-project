@@ -35,13 +35,18 @@ typedef enum {PLUS = 0,
 	      YCOMB = 2,
 	      SELECT = 3,
 	      EQ = 4,
+	      IF = 5,
+	      UNPACK_PRODUCT = 6,
 	      NUM_BUILTINS
 } Builtin;
 const static short BUILTIN_ARGUMENTS[NUM_BUILTINS] = {
 	2, //PLUS
 	2, //MINUS
 	1, //YCOMB
-	2  //SELECT
+	2, //SELECT
+	2, //EQ
+	3, //IF
+	3  //UNPACK-PRODUCT arity f a
 };
 
 // Symbols for variable names.
@@ -90,6 +95,7 @@ struct Cell* get_app_operand(struct Cell* app);
 char* get_abstr_symbol(struct Cell* abstr);
 struct Cell* get_abstr_body(struct Cell* abstr);
 StructuredDataTag get_data_tag(struct Cell* data_cell);
+int get_data_num(struct Cell* data_cell);
 StructuredDataTag get_constr_data_tag(struct Cell* constr);
 int get_constr_nfields(struct Cell* constr);
 struct Cell* select_data_field(struct Cell* data_cell, size_t index);

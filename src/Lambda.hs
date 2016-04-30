@@ -1,5 +1,6 @@
 module Lambda where
 import Constant
+import Symbol
 import Generic.Glutton
 import Control.Monad
 import Control.Applicative ((<*>), (<$>), (<*))
@@ -18,7 +19,6 @@ data Expr = Var   Symbol
           | Abstr Symbol    Expr
             deriving (Eq, Show)
 
-type Symbol = String
 
 -- Perform a single toplevel eta reduction.
 etaReduce :: Expr -> Expr

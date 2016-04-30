@@ -21,6 +21,7 @@ struct SelectRedexResult {
 struct SpineStack* push_spine_stack(struct SpineStack* stack, struct Cell* cell);
 struct SpineStack* pop_spine_stack(struct SpineStack* stack);
 struct SpineStack* spine_stack_nth_node(struct SpineStack* stack, int n);
+struct Cell* get_nth_argument(struct SpineStack* stack, int n);
 void destroy_spine_stack(struct SpineStack* stack);
 int spine_stack_size(struct SpineStack* stack);
 

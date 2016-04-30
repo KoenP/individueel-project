@@ -7,7 +7,7 @@ import Constant
 import Generic.Glutton
 
 lambdaViz :: Expr -> IO ()
-lambdaViz = preview . convert
+lambdaViz e = preview (convert e) >> putStrLn "PREVIEW!"
 
 convert :: Expr -> Gr String String
 convert e = uncurry mkGraph $ feed (nodesAndEdges e) [0..]
@@ -18,7 +18,7 @@ nodesAndEdges (Const c) = nibbler $ \node -> ([(node, showConstant c)], [])
 nodesAndEdges (Abstr sym body) = do
   (bodyRoot:bodyNodes, bodyEdges) <- nodesAndEdges body 
   node <- nibbler id
-  let nodes = (node, "\\"++sym) : (bodyRoot:bodyNodes)
+  let nodes = (node, "λ"++sym) : (bodyRoot:bodyNodes)
       edges = (node, fst bodyRoot, "") : bodyEdges
   return (nodes, edges)
 nodesAndEdges (App e f) = do

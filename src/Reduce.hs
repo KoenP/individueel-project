@@ -34,3 +34,5 @@ mapBuiltin MinusConst = 1
 mapBuiltin YCombConst = 2
 mapBuiltin SelectConst = 3
 mapBuiltin EqConst = 4
+mapBuiltin IfConst = 5
+mapBuiltin UnpackProductConst = 6

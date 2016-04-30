@@ -15,6 +15,7 @@ import Reduce
 import Generic.Varia (showError, showEitherResult)
 import LambdaViz (lambdaViz)
 
+    -- (\l.case l of (CONS a b) -> 1; (NIL) -> 2;) (CONS 2 3)
 main :: IO ()
 main = do
   typedefs <- readTypeDefinitions "typedefs"
@@ -29,7 +30,7 @@ main = do
                                       . fmap impoverish
                                       . fillInTypeInfo constrLookup)
          (case impoverished of Left err -> putStr err
-                               Right e  -> lambdaViz e >> reduce e)
+                               Right e  -> print e >> lambdaViz e >> reduce e)
          putChar '\n'
          hFlush stdout
          repl constrLookup

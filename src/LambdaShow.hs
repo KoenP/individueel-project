@@ -1,6 +1,7 @@
 module LambdaShow where
 import Lambda
 import Constant
+import Symbol
 
 -- Returns a string representing the expression.
 -- This simple function's output exactly matches the internal representation

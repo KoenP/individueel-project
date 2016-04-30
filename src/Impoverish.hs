@@ -42,12 +42,12 @@ impoverish (EL.AbstrExpr p e)
             -> let e' = impoverish e
                    v  = head $ L.nonfreeSymbols e'
                    -- b is (IF (= k v) E FAIL)
-                   b  = L.makeApp (L.Var "IF")
-                                  (L.App (L.App (L.Var "=")
+                   b  = L.makeApp (L.Const IfConst)
+                                  (L.App (L.App (L.Const EqConst)
                                                 (L.Const k))
                                          (L.Var v))
                                   [ e'
-                                  , L.Var "FAIL"
+                                  , L.Const FailConst
                                   ]
                         in L.Abstr v b
 
@@ -57,12 +57,14 @@ impoverish (EL.AbstrExpr p e)
                    tag   = fromJust $ getStructureTag tdef t
                in case productOrSumType tdef of
                  -- Product-constructor pattern.
-                 ProductType -> L.App (L.Var $ "UNPACK-PRODUCT-" ++ show arity)
-                                      (impoverish $ EL.makeAbstr ps e)
+                    ProductType -> L.makeApp (L.Const UnpackProductConst)
+                                             (L.Const (IntConst arity))
+                                             [impoverish $ EL.makeAbstr ps e]
+
                  -- Sum-constructor pattern.
-                 SumType     -> L.App (L.Var $ "UNPACK-SUM-"
-                                               ++ show tag ++ "-" ++ show arity)
-                                      (impoverish $ EL.makeAbstr ps e)
+                    SumType     -> L.App (L.Var $ "UNPACK-SUM-"
+                                                ++ show tag ++ "-" ++ show arity)
+                                         (impoverish $ EL.makeAbstr ps e)
 
                                 
 -- Transform let expression.
@@ -79,7 +81,8 @@ impoverish (EL.LetExpr (p, b) e)
                         arity = case getConstructorArity tdef t of
                                   Nothing  -> error (show (t, tdef))
                                   (Just n) -> n
-                        makeSel = EL.VarExpr . (("SEL-" ++ show arity ++ "-") ++) . show
+                        makeSel i = EL.AppExpr (EL.ConstExpr SelectConst)
+                                               (EL.ConstExpr (IntConst i))
                         r = length ps
                         sels = map makeSel [1..r]
                         apps = map (`EL.AppExpr` EL.VarExpr v) sels
@@ -148,7 +151,6 @@ impoverish (EL.CaseExpr v cs)
                    
 impoverish (EL.FatbarExpr e f)
     = L.makeApp (L.Var "FATBAR") (impoverish e) [impoverish f]
-
 
 -- Transform a refutable pattern into an irrefutable one (p117).
 conformalityTransformation :: Def TypeDef -> Def TypeDef

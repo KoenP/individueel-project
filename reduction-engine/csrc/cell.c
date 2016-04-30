@@ -52,7 +52,7 @@ void set_cell_constructor(struct Cell* c, StructuredDataTag data_tag, int nargs)
 	c->f2.num	= nargs;
 }
 void set_data_field(struct Cell* data_cell, int index, struct Cell* value) {
-	printf("set_data_field\n");
+	printf("set_data_field, index = %d, value = %p\n", index, value);
 	data_cell->f2.data_ptr[index] = value;
 }
 
@@ -84,6 +84,10 @@ StructuredDataTag get_data_tag(struct Cell* data_cell) {
 	assert(data_cell->tag == DATA);
 	return data_cell->f1.data_tag;
 }
+int get_data_num(struct Cell* data_cell) {
+	assert(data_cell->tag == DATA);
+	return data_cell->f1.num;
+}
 StructuredDataTag get_constr_data_tag(struct Cell* constr) {
 	assert(constr->tag == CONSTR);
 	return constr->f1.data_tag;
@@ -112,7 +116,7 @@ void _print_cell(struct Cell* cell) {
 		break;
 
 	case ABSTR:
-		printf("ABSTR %s\n", get_abstr_symbol(cell));
+		printf("\\%s. ", get_abstr_symbol(cell));
 		_print_cell(get_abstr_body(cell));
 		break;
 
@@ -121,7 +125,7 @@ void _print_cell(struct Cell* cell) {
 		break;
 
 	case BUILTIN:
-		printf("{BUILTIN %i}", cell->tag);
+		printf("{BUILTIN = %i}", cell->f1.op);
 		break;
 
 	case CONSTR:
@@ -131,7 +135,7 @@ void _print_cell(struct Cell* cell) {
 		break;
 		       
 	default:
-		printf("Unrecognized tag: %i\n", cell->tag);
+		printf("Unrecognized tag: %i", cell->tag);
 	}
 }
 void print_cell(struct Cell* cell) {

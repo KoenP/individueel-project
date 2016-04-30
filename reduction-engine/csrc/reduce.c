@@ -25,6 +25,9 @@ struct SpineStack* spine_stack_nth_node(struct SpineStack* stack, int n) {
 	while (n-- > 0) stack = stack->base;
 	return stack;
 }
+struct Cell* get_nth_argument(struct SpineStack* stack, int n) {
+	return get_app_operand(spine_stack_nth_node(stack, n)->cell);
+}
 void destroy_spine_stack(struct SpineStack* stack) {
 	while (stack) stack = pop_spine_stack(stack);
 	assert(stack == NULL);
@@ -198,11 +201,55 @@ struct Cell* reduce_builtin(struct SpineStack* spine_stack) {
 		break;
 
 	case SELECT: ;
-		int index = reduce_arg(spine_stack, 1)->f1.num;
+		printf("SELECT REDUCTION 1\n");
+		struct Cell* arg = reduce_arg(spine_stack, 1);
+		assert(arg && arg->tag == DATA);
+		int index = arg->f1.num - 1;
+		printf("SELECT REDUCTION 2\n");
 		struct Cell* data_cell = reduce_arg(spine_stack, 2);
 		assert(data_cell->tag == DATA);
 		result = select_data_field(data_cell, index);
+		printf("SELECT RESULT %p\n", result);
+		printf("\t= %d\n", get_data_num(result));
 		break;
+
+	case EQ: ;
+		int equality = reduce_arg(spine_stack, 1)->f1.num
+			== reduce_arg(spine_stack, 2)->f1.num;
+		result = make_empty_cell(result, equality);
+		set_cell_number(result, equality);
+		break;
+
+	case IF: ;
+		struct Cell* cond_result = reduce_arg(spine_stack, 1);
+		assert(cond_result->tag == DATA);
+		if (get_data_num(cond_result) == 1)
+			result = get_nth_argument(spine_stack, 2);
+		else
+			result = get_nth_argument(spine_stack, 3);
+		break;
+
+	case UNPACK_PRODUCT: ;
+		int arity = get_data_num(get_nth_argument(spine_stack, 1));
+		struct Cell* f = reduce_arg(spine_stack, 2);
+		struct Cell* a = reduce_arg(spine_stack, 3);
+		assert(a->tag == DATA);
+
+		struct Cell* lhs = f;
+		for (int i = 1; i <= arity; i++) {
+			struct Cell* select_op = make_empty_cell();
+			struct Cell* n = make_empty_cell();
+			struct Cell* inner_app = make_empty_cell();
+			struct Cell* middle_app = make_empty_cell();
+			struct Cell* outer_app = make_empty_cell();
+			set_cell_builtin(select_op, SELECT);
+			set_cell_number(n, i);
+			set_cell_app(inner_app, select_op, n);
+			set_cell_app(middle_app, inner_app, a);
+			set_cell_app(outer_app, lhs, middle_app);
+			lhs = outer_app;
+		}
+		result = lhs;
 	}
 
 	return result;
@@ -226,19 +273,23 @@ struct Cell* reduce_constructor(struct SpineStack* spine_stack) {
 
 	return result;
 }
-
+static int count = 0;
 struct Cell* reduce(struct Cell* cell) {
+	int calltag = count++;
+	printf("#### BEGIN %d ############\n", calltag);
 	printf("CALL TO REDUCE\n");
 	struct SelectRedexResult srr = select_redex(NULL, cell);
 
 	// If there is no redex, the expression is already fully reduced.
-	if (srr.redex == NULL)
+	if (srr.redex == NULL) {
+		printf("RESULT %p = \n\t", cell); print_cell(cell);
+		printf("#### END %d ##############\n", calltag);
 		return cell;
+	}
 
 	struct Cell* operator = srr.spine_stack->cell;
 	struct Cell* result = NULL;
 
-	printf("####################\n");
 	printf("REDUCING\tCELL %p\n\t\tREDEX %p with tag = %i\n\t\tOPERATOR %p with tag = %i\n", cell, srr.redex, srr.redex->tag, operator, operator->tag);
 
 	switch (operator->tag) {
@@ -262,6 +313,10 @@ struct Cell* reduce(struct Cell* cell) {
 	*srr.redex = *result;
 	destroy_spine_stack(srr.spine_stack);
 
-	printf("####################\n");
+	printf("#### END %d ##############\n", calltag);
 	return reduce(cell);
 }
+
+// DOES NOT WORK
+// let p = PAIR 1 2 in let (PAIR x y) = p in y
+// (\p.( \ (PAIR x y).y) p) (PAIR 1 2)
