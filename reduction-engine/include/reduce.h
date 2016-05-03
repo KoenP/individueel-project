@@ -28,6 +28,7 @@ int spine_stack_size(struct SpineStack* stack);
 // Returns the redex with the full spine stack, or (NULL,NULL) if there are no
 // reductions to be done.
 struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cell* cell);
+int _reduce(struct Cell* redex);
 struct Cell* reduce(struct Cell* redex);
 
 

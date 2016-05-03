@@ -30,13 +30,17 @@ typedef enum {VAR, APP, ABSTR, DATA, BUILTIN, CONSTR} Tag;
  */
 
 // Constant symbols representing buitlin functions.
-typedef enum {PLUS = 0,
-	      MINUS = 1,
-	      YCOMB = 2,
-	      SELECT = 3,
-	      EQ = 4,
-	      IF = 5,
-	      UNPACK_PRODUCT = 6,
+typedef enum {PLUS		= 0,
+	      MINUS		= 1,
+	      YCOMB		= 2,
+	      SELECT		= 3,
+	      EQ		= 4,
+	      IF		= 5,
+	      UNPACK_PRODUCT	= 6,
+	      UNPACK_SUM	= 7,
+	      FATBAR		= 8,
+	      ERROR		= 9,
+	      FAIL  		= 10,
 	      NUM_BUILTINS
 } Builtin;
 const static short BUILTIN_ARGUMENTS[NUM_BUILTINS] = {
@@ -46,7 +50,11 @@ const static short BUILTIN_ARGUMENTS[NUM_BUILTINS] = {
 	2, //SELECT
 	2, //EQ
 	3, //IF
-	3  //UNPACK-PRODUCT arity f a
+	3, //UNPACK-PRODUCT arity f a
+	4, //UNPACK-SUM tag arity f a
+	2, //FATBAR e f
+	0, //ERROR
+	0  //FAIL
 };
 
 // Symbols for variable names.
@@ -96,6 +104,7 @@ char* get_abstr_symbol(struct Cell* abstr);
 struct Cell* get_abstr_body(struct Cell* abstr);
 StructuredDataTag get_data_tag(struct Cell* data_cell);
 int get_data_num(struct Cell* data_cell);
+Builtin get_builtin_op(struct Cell* builtin_cell);
 StructuredDataTag get_constr_data_tag(struct Cell* constr);
 int get_constr_nfields(struct Cell* constr);
 struct Cell* select_data_field(struct Cell* data_cell, size_t index);

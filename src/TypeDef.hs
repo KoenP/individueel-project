@@ -25,7 +25,6 @@ data ProductOrSumType = SumType | ProductType deriving (Show, Eq)
 
 data ConstructorUndefinedError = ConstructorUndefinedError Symbol deriving (Show)
 
-
 -- Get the type definition to which a constructor (lookup by symbol) belongs.
 getConstructorType :: [TypeDef] -> Symbol -> Maybe TypeDef
 getConstructorType tds = (`M.lookup` table)

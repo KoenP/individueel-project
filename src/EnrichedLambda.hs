@@ -5,6 +5,8 @@ import Constant
 import TypeDef
 import Control.Monad (join)
 import Data.List (find)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 -- XXX Constants not yet implemented.
     
@@ -16,7 +18,7 @@ data Expr typeinfo = VarExpr    Symbol
                    | LetExpr    (Def typeinfo)      (Expr typeinfo)
                    | LetrecExpr [Def typeinfo]      (Expr typeinfo)
                    | FatbarExpr (Expr typeinfo)     (Expr typeinfo)
-                   | CaseExpr   Symbol              [(Pattern typeinfo, Expr typeinfo)]
+                   | CaseExpr   (Expr typeinfo)     [(Pattern typeinfo, Expr typeinfo)]
                      deriving (Show, Eq)
 
 type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
@@ -36,8 +38,9 @@ fillInTypeInfo g e =
       (LetrecExpr defs e) -> LetrecExpr <$> sequence (map fillInDefTypeInfo defs) <*> h e
       (FatbarExpr e f)    -> FatbarExpr <$> h e <*> h f
       (CaseExpr s cases)
-          -> CaseExpr s
-             <$> sequence
+          -> CaseExpr
+             <$> fillInTypeInfo g s
+             <*> sequence
                  (map (\(p,e)->(,) <$> fillInPatTypeInfo g p <*> h e) cases)
     where
       h = fillInTypeInfo g
@@ -72,3 +75,42 @@ makeLet ds e = foldr ((.) . LetExpr) id ds e
 simpleDef :: Def typeinfo -> Bool
 simpleDef (VarPat _, _) = True
 simpleDef _ = False
+
+-- Returns the set of variables that occur free in the expression.
+freeVariables :: Expr typeinfo -> Set Symbol
+freeVariables (VarExpr s) = Set.singleton s
+freeVariables (ConstExpr c) = Set.empty
+freeVariables (AppExpr e f) = Set.union (freeVariables e) (freeVariables f)
+freeVariables (AbstrExpr p b) = freeVariables b `Set.difference` patVariables p
+freeVariables (LetExpr (pat, a) e) = (freeVariables a `Set.union` freeVariables e)
+                                     `Set.difference`
+                                     patVariables pat
+freeVariables (LetrecExpr defs e) = 
+    let (pats, exprs) = unzip defs
+        patVarUnions = scanl1 Set.union (map patVariables pats)
+        defFreeVars = zipWith Set.difference (map freeVariables exprs) patVarUnions
+    in Set.unions defFreeVars
+           `Set.union` (freeVariables e `Set.difference` last patVarUnions)
+       
+freeVariables (FatbarExpr e f) = Set.union (freeVariables e) (freeVariables f)
+freeVariables (CaseExpr s cases)
+    = freeVariables s `Set.union` Set.unions [freeVariables exp
+                                              `Set.difference`
+                                              patVariables pat | (pat, exp) <- cases]
+
+-- Systematically generates all symbols composed of lowercase letters.
+symbols :: [Symbol]
+symbols = map (:"") ['a'..'z'] ++ ( flip (:) <$> symbols <*> ['a'..'z'] )
+
+-- Systematically generates all symbols composed of lowercase letters which do not occur
+-- free in the expression.
+nonfreeSymbols :: Expr typeinfo -> [Symbol]
+nonfreeSymbols e = filter (`Set.notMember` freeVariables e) symbols
+
+-- Get a variable that does not occur free in the expression.
+getNewVariable :: Expr typeinfo -> Symbol
+getNewVariable = head . nonfreeSymbols
+
+-- Get multiple variables that does not occur free in the expression.
+getNewVariables :: Expr typeinfo -> Int -> [Symbol]
+getNewVariables expr n = take n (nonfreeSymbols expr)

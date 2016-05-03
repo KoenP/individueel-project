@@ -82,7 +82,7 @@ exprParser = m_whiteSpace >> expr <* eof
       -- Deviation from book notation: all pattern-expression pairs must
       -- be terminated by a semicolon (;).
       caseExpr = do m_reserved "case"
-                    s <- m_identifier
+                    s <- expr
                     m_reserved "of"
                     cs <- many1 caseEntry
                     return (CaseExpr s cs)
@@ -128,6 +128,7 @@ exprParser = m_whiteSpace >> expr <* eof
                  <|> (m_reserved "SELECT" >> return SelectConst)
                  <|> (m_reserved "="      >> return EqConst)
                  <|> (m_reserved "IF"     >> return IfConst)
+                 <|> (m_reserved "_"      >> return ErrorConst)
 
       -- Parse an integer (positive or negative whole number).
       -- Negative numbers should be parenthesized.
@@ -150,7 +151,7 @@ ldef :: LanguageDef st
 ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
                 , reservedNames   = ["let", "letrec", "in", "case", "of",
-                                     "+", "-", "=", "IF"]
+                                     "+", "-", "=", "IF", "_"]
                 , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
                 , caseSensitive   = True
                 }

@@ -88,6 +88,10 @@ int get_data_num(struct Cell* data_cell) {
 	assert(data_cell->tag == DATA);
 	return data_cell->f1.num;
 }
+Builtin get_builtin_op(struct Cell* builtin_cell) {
+	assert(builtin_cell->tag == BUILTIN);
+	return builtin_cell->f1.op;
+}
 StructuredDataTag get_constr_data_tag(struct Cell* constr) {
 	assert(constr->tag == CONSTR);
 	return constr->f1.data_tag;

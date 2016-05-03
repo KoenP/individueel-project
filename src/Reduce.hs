@@ -36,3 +36,6 @@ mapBuiltin SelectConst = 3
 mapBuiltin EqConst = 4
 mapBuiltin IfConst = 5
 mapBuiltin UnpackProductConst = 6
+mapBuiltin UnpackSumConst = 7
+mapBuiltin FatbarConst = 8
+mapBuiltin ErrorConst = 9

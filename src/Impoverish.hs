@@ -62,10 +62,11 @@ impoverish (EL.AbstrExpr p e)
                                              [impoverish $ EL.makeAbstr ps e]
 
                  -- Sum-constructor pattern.
-                    SumType     -> L.App (L.Var $ "UNPACK-SUM-"
-                                                ++ show tag ++ "-" ++ show arity)
-                                         (impoverish $ EL.makeAbstr ps e)
-
+                    SumType     -> L.makeApp (L.Const UnpackSumConst)
+                                             (L.Const (IntConst tag))
+                                             [ L.Const (IntConst arity)
+                                             , impoverish (EL.makeAbstr ps e)]
+                                   -- XXX
                                 
 -- Transform let expression.
 impoverish (EL.LetExpr (p, b) e)
@@ -105,9 +106,19 @@ impoverish (EL.LetrecExpr defs e)
               nTupConstr = head $ getTypeConstructors nTupType
               nTupConstrName = getConstrName nTupConstr
               p = ConstrPat nTupType nTupConstrName (map fst defs)
-              b = EL.makeApp (EL.VarExpr nTupConstrName) (snd$head defs)
-                                                         (map snd $ tail defs)
-              yExpr = EL.AppExpr (EL.VarExpr "Y") (EL.AbstrExpr p b)
+              b = EL.makeApp
+                  (EL.ConstExpr $ ConstrConst (DataTag 0) (length defs))
+                  (snd $ head defs)
+                  (map snd $ tail defs)
+              abstr = EL.AbstrExpr p b
+              [f, x] = EL.getNewVariables abstr 2
+              yComb = let [fPat, xPat] = map VarPat [f, x]
+                          [fVar, xVar] = map EL.VarExpr [f, x]
+                          body = EL.AbstrExpr xPat
+                                 $ EL.AppExpr fVar
+                                 $ EL.AppExpr xVar xVar
+                      in EL.AbstrExpr fPat (EL.AppExpr body body)
+              yExpr = EL.AppExpr yComb abstr
           in impoverish $ EL.LetExpr (p,yExpr) e
 
     -- Transform general letrec into irrefutable letrec.
@@ -119,45 +130,53 @@ impoverish (EL.LetrecExpr defs e)
                   in impoverish (EL.LetrecExpr newDefs e)
 
 -- Transform a case expression.
--- This case is not total. It operates under the assumption that, if
--- the list of cases contains more than one entry, all patterns must be
--- sum patterns. Type checking should make sure that this is always
--- the case.
--- TODO: CASE-T should be replaced by CASE-{type of sum pattern}.
-impoverish (EL.CaseExpr v cs)
+impoverish (EL.CaseExpr expr cs)
     = case cs of
         -- Case expressions involving a product type (p122 6.3.1).
         -- possible optimization p124 6.3.3 
         [(ConstrPat (TypeDef _ [constr]) sym vs, e1)]
             -> let arity = length $ getConstrFields constr
-                   unpack = EL.VarExpr ("UNPACK-PRODUCT-" ++ show arity)
+                   unpack = EL.AppExpr (EL.ConstExpr UnpackProductConst)
+                                       (EL.ConstExpr (IntConst arity)) -- XXX
                    abstr = EL.makeAbstr vs e1
-               in impoverish $ EL.makeApp unpack abstr [EL.VarExpr v]
+               in impoverish $ EL.makeApp unpack abstr [expr]
 
 
         -- Case expressions involving a sum type (p122 6.3.2).
         -- possible optimization p124 6.3.3 
+        -- NOTE: using alternative implementation with [] and FAIL.
+        -- XXX
         otherwise -> let (ConstrPat tdef _ _) = fst $ head cs
                          n = length (getTypeConstructors tdef)
-                         caseTerm = EL.VarExpr ("CASE-" ++ show n)
-                         vTerm = EL.VarExpr v
                          tag sym = fromJust (getStructureTag tdef sym)
+                         arity sym = fromJust (getConstructorArity tdef sym)
                          unpack (ConstrPat _ si vs, e)
-                             = EL.AppExpr (EL.VarExpr$"UNPACK-SUM-"++
-                                                      show n ++ "-" ++ show (tag si))
-                                          (EL.makeAbstr vs e)
-                         unpackTerms = map ((`EL.AppExpr` vTerm) . unpack) cs
-                     in impoverish $ EL.makeApp caseTerm vTerm unpackTerms
+                             = EL.makeApp
+                               (EL.ConstExpr UnpackSumConst)
+                               (EL.ConstExpr (IntConst (tag si)))
+                               [ EL.ConstExpr (IntConst (arity si))
+                               , EL.makeAbstr vs e
+                               ]
+                         unpackTerms = map unpack cs
+                         abstrParam = EL.getNewVariable
+                                      $ foldl1 EL.AppExpr unpackTerms
+                         abstrBody = foldl1
+                                     EL.FatbarExpr
+                                     $ map (`EL.AppExpr` EL.VarExpr abstrParam)
+                                           unpackTerms
+                     in impoverish
+                        $ EL.AppExpr (EL.AbstrExpr (VarPat abstrParam) abstrBody) expr
+
                    
 impoverish (EL.FatbarExpr e f)
-    = L.makeApp (L.Var "FATBAR") (impoverish e) [impoverish f]
+    = L.makeApp (L.Const FatbarConst) (impoverish e) [impoverish f]
 
 -- Transform a refutable pattern into an irrefutable one (p117).
 conformalityTransformation :: Def TypeDef -> Def TypeDef
 conformalityTransformation (pat@(ConstrPat tdef sym pats), b) = (rhs, lhs)
     where
       rhs = ConstrPat nTupType (getConstrName nTupConstr) (map VarPat vars)
-      lhs = EL.FatbarExpr app (EL.VarExpr "ERROR")
+      lhs = EL.FatbarExpr app (EL.ConstExpr ErrorConst)
       app = EL.AppExpr abstr b
       abstr = EL.AbstrExpr pat $ EL.makeApp (EL.VarExpr $ getConstrName nTupConstr)
                                             (EL.VarExpr $ head vars)

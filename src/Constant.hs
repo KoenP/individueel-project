@@ -11,13 +11,14 @@ data Constant = IntConst Int
               | ConstrConst DataTag Size
               | EqConst
               | IfConst
-              | FailConst
               | UnpackProductConst
+              | UnpackSumConst
+              | FatbarConst
+              | ErrorConst
+              | FailConst
                 deriving (Show, Eq)
 
-newtype DataTag = DataTag Int deriving (Eq)
-instance Show DataTag where
-    show (DataTag i) = show i
+newtype DataTag = DataTag Int deriving (Eq, Show)
 type Size = Int
 
 -- Translate the constant to a symbol as it occurs in (enriched)
@@ -31,8 +32,11 @@ showConstant SelectConst                    = "SELECT"
 showConstant (ConstrConst (DataTag i) size) = "CONSTR-" ++ show i ++ "-" ++ show size
 showConstant EqConst                        = "="
 showConstant IfConst                        = "IF"
-showConstant FailConst                      = "FAIL"
 showConstant UnpackProductConst             = "UNPACK-PRODUCT"
+showConstant UnpackSumConst                 = "UNPACK-SUM"
+showConstant FatbarConst                    = "FATBAR"
+showConstant ErrorConst                     = "ERROR"
+showConstant FailConst                      = "FAIL"
 
 -- Arbitrary instance for QuickCheck.
 instance Arbitrary Constant where
