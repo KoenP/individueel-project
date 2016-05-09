@@ -1,0 +1,17 @@
+irrefutable pattern matching
+    let second = \(PAIR x y).y in second (PAIR 7 8)
+
+refutable pattern matching
+    let head = \(CONS x y). x in head (CONS 40 50)
+    let head = \(CONS x y). x in head NIL
+
+recursive call (manueel met fixed point)
+    let y = \f.(\x.f (x x)) (\x.f (x x)), fac = y (\fac.\n.IF (= n 0) 1 (* n (fac (- n 1)))) in fac 3
+    let y = \f.(\x.f (x x)) (\x.f (x x)), sum = y (\sum.\list.case list of (CONS x xs) -> + x (sum xs); (NIL) -> 0;) in sum (CONS 4 (CONS 7 (CONS 11 NIL)))
+
+
+letrec fac = \n . IF (= n 0) 1 (* n (fac (- n 1))) in fac 0
+
+let second = \(CONS x (CONS y z)).y in second NIL
+
+letrec nth = \(CONS x xs) n. IF (= n 0) x (nth xs (- n 1)), map = \f l. case l of (NIL) -> NIL; (CONS x xs) -> CONS (f x) (map f xs);, integers = CONS 0 (map (+ 1) integers) in nth integers 4

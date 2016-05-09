@@ -1,0 +1,115 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage[dutch]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{wasysym}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{setspace}
+\usepackage{tikz}
+\usetikzlibrary{arrows}
+\onehalfspacing
+
+\DeclareGraphicsExtensions{.pdf}
+
+\begin{document}
+\lstset{language=Haskell}
+\title{Verslag 2: Lazy evaluation door middel van graafreductie}
+\author{Koen Pauwels}
+\maketitle
+
+\section{Inleiding}
+\subsection{Waarom lazy evaluation?}
+\paragraph{}
+In de meeste programmeertalen worden argumenten aan een functie ge{\"e}valueerd voordat de functie wordt opgeroepen.
+Dit noemen we een \emph{call by value} strategie.
+Het is echter mogelijk dat een argument nooit wordt gebruikt in de functie.
+In dat geval wordt er overbodig werk geleverd.
+\paragraph{}
+We kunnen proberen dit overbodig werk te vermijden door de evaluatie van een argument uit te stellen totdat de waarde ervan nodig is.
+Dit noemen we een \emph{call by need} of \emph{lazy evaluation} strategie.
+Deze strategie is zo goed als uniek voor zuiver functionele talen.
+In imperatieve talen berust de betekenis van een programma op het in een correcte, voorspelbare volgorde plaatsvinden van bepaalde \emph{side-effects}.
+Met \emph{call by need} kan het erg moeilijk worden om uit te werken in welke volgorde de expressies zullen worden ge{\"e}valueerd, en dus in welke volgorde de side-effects zullen plaatsvinden.
+\paragraph{}
+
+
+\subsection{Waarom een graafvoorstelling?}
+Wanneer een $\lambda$-expressie wordt ingeladen in de compiler, zal deze een boomvoorstelling van de expressie genereren.
+Zoals eerder vermeld worden argumenten aan functies enkel ge{\"e}valueerd wanneer de waarde nodig is.
+Na{\"i}eve normal-order reductie op de boomvoorstelling van de $\lambda$-expressie voldoet wel aan deze voorwaarde, maar zal vaak tot dubbel werk (en dus tot grote ineffici{\"e}nties) leiden.
+Wanneer een parameter namelijk meerdere keren voorkomt in het lichaam van een expressie, zal elk voorval van die parameter vervangen moeten worden door een kopie van het argument.
+Als we het programma voorstellen als een graaf in plaats van een boom, dan kunnen we elk voorval van de parameter in het lichaam van een $\lambda$-expressie vervangen door een \emph{referentie} naar het argument, in plaats van een kopie ervan.
+Bij het evalueren van een argument zullen we ervoor zorgen dat de wortelnode van het argument wordt overschreven met het resultaat van de evaluatie.
+Elke referentie naar het argument verwijst dan automatisch en zonder extra kost naar het resultaat van de evaluatie.
+
+TODO: uitleg adhv voorbeelden.
+
+
+\section{Programmarepresentatie}
+De graafvoorstelling moet alle constructies van de $\lambda$-calculus ondersteunen, maar verder verwachten we ook ondersteuning voor een aantal bijzondere builtin operaties en datastructuren.
+In theorie is de $\lambda$-calculus voldoende om alle programma's die we wensen uit te drukken, maar in praktijk willen we onder meer de machinevoorstelling gebruiken voor getallen, machine-operaties kunnen uitvoeren op die getallen, gestructureerde datatypes kunnen gebruiken, etc.
+\paragraph{}
+De basis van de graafvoorstelling is de \emph{cel}, een eenvoudige datastructuur die uit drie elementen bestaat: een \emph{tag} die aangeeft over welk type cel het gaat, en twee \emph{fields}.
+Een field kan een pointer naar een andere cel bevatten (op deze manier worden de edges van de graaf ge{\"i}mplementeerd), of een waarde waarvan de betekenis afhangt van het type cel en de context.
+
+\begin{lstlisting}[language=C,frame=single,caption={Definitie van de Cell datastructuur}]
+typedef enum {VAR, APP, ABSTR, DATA, BUILTIN, CONSTR} Tag;
+union Field {
+	struct Cell* ptr;
+	char* sym;
+	int num;
+	Builtin op;
+	StructuredDataTag data_tag;
+	StructuredDataPtr data_ptr;
+};
+struct Cell {
+	Tag tag;
+	union Field f1;
+	union Field f2;
+};
+\end{lstlisting}
+
+De eerste drie celtypes implementeren de structuren van de $\lambda$-calculus, zoals beschreven in \emph{The Implementation of Functional Programming Languages (IFPL)}: variabelen, applicaties en abstracties.
+\begin{itemize}
+\item
+  Een \texttt{VAR} cel gebruikt slechts 1 van zijn fields.
+  Dat veld bevat een pointer naar een string die het symbool opslaat.
+  Er is een effici{\"e}ntere implementatie mogelijk: we zouden bij het compileren elk symbool kunnen associ{\"e}ren met een uniek getal, en dit getal rechtstreeks in het veld opslaan.
+  Ik heb besloten om de originele namen te behouden om debugging niet te bemoeilijken.
+\item
+  De velden van een \texttt{APP} cel zijn eenvoudigweg celpointers naar de operator en de operand van een applicatie.
+\item
+  Een \texttt{ABSTR} cel bevat een pointer naar het parameter symbool, en een celpointer naar het lichaam van de functie.
+\end{itemize}
+
+Het boek is minder helder over welke extra tags er nodig zijn om de implementatie te vervolledigen.
+Mijn implementatie maakt verder nog onderscheid tussen datacellen, builtins (operatoren en constanten) en constructors.
+\begin{itemize}
+\item
+  \texttt{DATA} cellen worden gebruikt om gegevens in op te slaan.
+  \emph{IFPL} lijkt onderscheid te maken tussen cellen die getallen opslaan en lijsten (\texttt{CONS} cellen), en eventueel nog aparte structured data cellen.
+  Ik zag geen reden om de data cellen bewust te maken van de betekenis van de gegevens die ze dragen, aangezien dit steeds af te leiden valt uit de context.
+  Een functie die iets met de data doet, bevat genoeg informatie om de data te interpreteren.
+  \texttt{DATA} cellen worden dus zowel gebruikt om primitieve data in op te slaan, zoals integers, of om naar gestructureerde datastructuren te verwijzen.
+  In het eerste geval bevat de datacel enkel de waarde van de primitieve data.
+  In het tweede geval bevat de cel een \emph{structured data tag} en een pointer naar de datastructuur.
+  Wanneer de datastructuur werd aangemaakt door een constructor van een somtype, is het de structured data tag die onthoudt welke constructor dit was.
+\item
+  Sommige operaties kunnen effici{\"e}nter worden uitgevoerd door een \texttt{BUILTIN} operatie te voorzien in de evaluator.
+  Voor arithmetische en logische functies gebruiken we machine-instructies.
+  Arithmetische en logische operatoren kunnen ge{\"i}mplementeerd worden door middel van snelle machine-instructies.
+  Conditionals en recursie kunnen ook worden uitgedrukt in $\lambda$-calculus, maar met ingebouwde \texttt{IF} en fixed point operatoren vermijden we heel wat overhead.
+  Verder kan enkel de \texttt{SELECT} operator velden uit een gestructureerd datatype opvragen.
+  \paragraph{}
+  Behalve operatoren zijn er ook enkele constanten die als builtins worden ge{\"i}mplementeerd.
+  Deze kunnen gezien worden als operatoren met 0 argumenten.
+  Een voorbeeld hiervan is de \texttt{FAIL} constante, die gebruikt wordt om een gefaalde poging tot pattern matching te indiceren.
+\end{itemize}
+
+\section{Implementatie van het reductiealgoritme}
+
+\end{document}

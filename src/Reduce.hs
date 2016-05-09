@@ -39,3 +39,5 @@ mapBuiltin UnpackProductConst = 6
 mapBuiltin UnpackSumConst = 7
 mapBuiltin FatbarConst = 8
 mapBuiltin ErrorConst = 9
+mapBuiltin FailConst = 10
+mapBuiltin MultConst = 11

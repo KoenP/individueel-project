@@ -41,6 +41,7 @@ typedef enum {PLUS		= 0,
 	      FATBAR		= 8,
 	      ERROR		= 9,
 	      FAIL  		= 10,
+	      MULT  		= 11,
 	      NUM_BUILTINS
 } Builtin;
 const static short BUILTIN_ARGUMENTS[NUM_BUILTINS] = {
@@ -54,7 +55,8 @@ const static short BUILTIN_ARGUMENTS[NUM_BUILTINS] = {
 	4, //UNPACK-SUM tag arity f a
 	2, //FATBAR e f
 	0, //ERROR
-	0  //FAIL
+	0, //FAIL
+	2  //MULT x y
 };
 
 // Symbols for variable names.

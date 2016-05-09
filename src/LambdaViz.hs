@@ -2,12 +2,24 @@ module LambdaViz where
 import Data.Graph.Inductive.Graph
 import Data.Graph.Inductive.PatriciaTree
 import Data.GraphViz
+import Data.GraphViz.Printing
+import Data.GraphViz.Attributes.Complete
+import Data.Text.Lazy
 import Lambda
 import Constant
 import Generic.Glutton
 
 lambdaViz :: Expr -> IO ()
-lambdaViz e = preview (convert e) >> putStrLn "PREVIEW!"
+lambdaViz e = preview (convert e)
+
+--lambdaToDot :: Expr -> String
+--lambdaToDot = unpack
+--              . renderDot
+--              . toDot
+--              . graphToDot defaultParams
+--              . convert
+--    where
+--      gtd = graphToDot ((defaultParams { fmtNode = \(n,nl) -> [Label (StrLabel (pack nl))] }) :: GraphvizParams Node String String () String)
 
 convert :: Expr -> Gr String String
 convert e = uncurry mkGraph $ feed (nodesAndEdges e) [0..]

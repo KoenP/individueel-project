@@ -129,6 +129,7 @@ exprParser = m_whiteSpace >> expr <* eof
                  <|> (m_reserved "="      >> return EqConst)
                  <|> (m_reserved "IF"     >> return IfConst)
                  <|> (m_reserved "_"      >> return ErrorConst)
+                 <|> (m_reserved "*"      >> return MultConst)
 
       -- Parse an integer (positive or negative whole number).
       -- Negative numbers should be parenthesized.
@@ -151,7 +152,7 @@ ldef :: LanguageDef st
 ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
                 , reservedNames   = ["let", "letrec", "in", "case", "of",
-                                     "+", "-", "=", "IF", "_"]
+                                     "+", "-", "=", "IF", "_", "*"]
                 , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
                 , caseSensitive   = True
                 }

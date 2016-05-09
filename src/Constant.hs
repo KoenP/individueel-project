@@ -16,6 +16,7 @@ data Constant = IntConst Int
               | FatbarConst
               | ErrorConst
               | FailConst
+              | MultConst
                 deriving (Show, Eq)
 
 newtype DataTag = DataTag Int deriving (Eq, Show)
@@ -37,6 +38,7 @@ showConstant UnpackSumConst                 = "UNPACK-SUM"
 showConstant FatbarConst                    = "FATBAR"
 showConstant ErrorConst                     = "ERROR"
 showConstant FailConst                      = "FAIL"
+showConstant MultConst                      = "*"
 
 -- Arbitrary instance for QuickCheck.
 instance Arbitrary Constant where

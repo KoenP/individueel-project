@@ -15,7 +15,7 @@ extra-source-files:  reduction-engine/csrc/reduce.c
                      reduction-engine/include/reduce.h
 
 library
-  ghc-options:         -optc -Wall
+  ghc-options:         -optc -Wall -O
   hs-source-dirs:      reduction-engine/src
   exposed-modules:     ReductionEngine
   c-sources:           reduction-engine/csrc/reduce.c
@@ -26,7 +26,7 @@ library
   build-depends:       base >= 4.7 && < 5
   default-language:    Haskell2010
 
-executable compiler
+executable ip
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
@@ -53,4 +53,5 @@ executable compiler
                        bifunctors,
                        graphviz,
                        fgl,
+                       text,
                        individueel-project

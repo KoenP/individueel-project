@@ -7,59 +7,57 @@ import EnrichedLambdaParse
 import LambdaShow
 import Impoverish
 import TypeDef
+import Symbol
 import System.IO (hFlush, stdout)
 import System.Environment (getArgs)
 import Data.Bifunctor (first)
 import qualified ReductionEngine as RE
 import Reduce
 import Generic.Varia (showError, showEitherResult)
-import LambdaViz (lambdaViz)
+import LambdaViz
 
-    -- (\l.case l of (CONS a b) -> 1; (NIL) -> 2;) (CONS 2 3)
+data RunMode = Compile FilePath
+             | Execute FilePath
+             | Repl
+             | Dot
+
+type ConstructorLookup = Symbol -> Maybe TypeDef
+
 main :: IO ()
 main = do
+  runMode <- fmap parseArgs getArgs
   typedefs <- readTypeDefinitions "typedefs"
-  repl (getConstructorType typedefs)
+  run (getConstructorType typedefs) runMode
+      
 
-  where
-    repl constrLookup = do
-         putStr "> "
-         hFlush stdout
-         elce <- fmap (showError . parseExpr) getLine
-         let impoverished = elce >>= (showError
-                                      . fmap impoverish
-                                      . fillInTypeInfo constrLookup)
-         (case impoverished of Left err -> putStr err
-                               Right e  -> print e >> lambdaViz e >> reduce e)
-         putChar '\n'
-         hFlush stdout
-         repl constrLookup
+run :: ConstructorLookup -> RunMode -> IO ()
+--run cl Dot = interact (lambdaToDot
+--                       . impoverish
+--                       . stripError
+--                       . fillInTypeInfo cl
+--                       . stripError
+--                       . parseExpr)
+run cl Repl = repl cl (\e -> print e >> lambdaViz e >> reduce e)
+       
+repl :: ConstructorLookup -> (L.Expr -> IO ()) -> IO ()
+repl constrLookup process = do
+        putStr "> "
+        hFlush stdout
+        elce <- fmap (showError . parseExpr) getLine
+        let impoverished = elce >>= (showError
+                                    . fmap impoverish
+                                    . fillInTypeInfo constrLookup)
+        (case impoverished of Left err -> putStr err
+                              Right e  -> process e)
+        putChar '\n'
+        hFlush stdout
+        repl constrLookup process
 
-
-    --let (Right (Right expr)) = fillInTypeInfo (const Nothing) <$> parseExpr "(+ 3 4)"
-       --in print expr >> (reduce . impoverish) expr
-
-
-  {-
-  -- Read type definition file.
-  [typedefFilePath] <- getArgs
-  typedefs <- readTypeDefinitions typedefFilePath
-  let constrLookup = getConstructorType typedefs
-
-  repl constrLookup
-  where repl constrLookup = do
-          putStr "> "
-          hFlush stdout
-          elce <- fmap parseExpr getLine
-          putStr $ either show
-                          (either show (showExpr . impoverish) . fillInTypeInfo constrLookup) elce
-                   
-
-          putChar '\n'
-          hFlush stdout
-          repl constrLookup
-   -}
-
+parseArgs :: [String] -> RunMode
+parseArgs ["-x", src] = Execute src
+parseArgs ["-d"] = Dot
+parseArgs ["--dot"] = Dot
+parseArgs _ = Repl
 
 readTypeDefinitions :: FilePath -> IO [TypeDef]
 readTypeDefinitions fp = do
@@ -75,3 +73,6 @@ readEnrichedLambda fp = do
     (Left err) -> error (show err)
     (Right e)  -> return e
 
+stripError :: (Show a) => Either a b -> b
+stripError (Left a) = error $ show a
+stripError (Right b) = b

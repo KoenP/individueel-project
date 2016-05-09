@@ -10,34 +10,28 @@ struct Cell* make_empty_cell() {
 	return malloc(sizeof(struct Cell));
 }
 void set_cell_var(struct Cell* c, Symbol sym) {
-	printf("In set_cell_var: %s; tag = %i\n", sym, VAR);
 	c->tag = VAR;
 	c->f1.sym = sym;
 }
 void set_cell_app(struct Cell* c, struct Cell* ptr1, struct Cell* ptr2) {
-	printf("set_cell_app\n");
 	c->tag		= APP;
 	c->f1.ptr	= ptr1;
 	c->f2.ptr	= ptr2;
 }
 void set_cell_abstr(struct Cell* c, Symbol sym, struct Cell* body) {
-	printf("set_cell_abstr\n");
 	c->tag		= ABSTR;
 	c->f1.sym	= sym;
 	c->f2.ptr	= body;
 }
 void set_cell_number(struct Cell* c, int num) {
-	printf("set_cell_number: %i\n", num);
 	c->tag		= DATA;
 	c->f1.num	= num;
 }
 void set_cell_builtin(struct Cell* c, Builtin op) {
-	printf("set_cell_builtin\n");
 	c->tag		= BUILTIN;
 	c->f1.op	= op;
 }
 void set_cell_empty_data(struct Cell* c, StructuredDataTag tag, int size) {
-	printf("set_cell_empty_data\n");
 	c->tag		= DATA;
 	c->f1.data_tag	= tag;
 	if (size > 0)
@@ -46,13 +40,11 @@ void set_cell_empty_data(struct Cell* c, StructuredDataTag tag, int size) {
 		c->f2.data_ptr = NULL;
 }
 void set_cell_constructor(struct Cell* c, StructuredDataTag data_tag, int nargs) {
-	printf("set_cell_constructor\n");
 	c->tag		= CONSTR;
 	c->f1.data_tag	= data_tag;
 	c->f2.num	= nargs;
 }
 void set_data_field(struct Cell* data_cell, int index, struct Cell* value) {
-	printf("set_data_field, index = %d, value = %p\n", index, value);
 	data_cell->f2.data_ptr[index] = value;
 }
 
@@ -106,7 +98,6 @@ struct Cell* select_data_field(struct Cell* data_cell, size_t index) {
 }
 
 void _print_cell(struct Cell* cell) {
-	//printf("Cell tag: %i\n", cell->tag);
 	switch (cell->tag) {
 	case VAR:
 		printf("%s", get_var_symbol(cell));
