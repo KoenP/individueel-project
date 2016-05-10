@@ -93,6 +93,7 @@ int get_constr_nfields(struct Cell* constr) {
 	return constr->f2.num;
 }
 struct Cell* select_data_field(struct Cell* data_cell, size_t index) {
+	printf("in select_data_field: cell tag = %d\n", data_cell->tag);
 	assert(data_cell->tag == DATA);
 	return data_cell->f2.data_ptr[index];
 }

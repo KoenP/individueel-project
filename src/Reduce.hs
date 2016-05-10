@@ -6,7 +6,7 @@ import qualified Lambda as L
 import Constant
 
 reduce :: L.Expr -> IO ()
-reduce expr = buildGraph expr >>= RE.reduce >>= RE.printCell
+reduce expr = buildGraph expr >>= RE.reducePrintList --RE.reduce >>= RE.printCell
 
 buildGraph :: L.Expr -> IO RE.CellPtr
 buildGraph (L.Var sym) = RE.makeVar sym

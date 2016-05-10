@@ -30,6 +30,6 @@ int spine_stack_size(struct SpineStack* stack);
 struct SelectRedexResult select_redex(struct SpineStack* spine_stack, struct Cell* cell);
 int _reduce(struct Cell* redex);
 struct Cell* reduce(struct Cell* redex);
-
+void reduce_print_list(struct Cell* cell);
 
 #endif

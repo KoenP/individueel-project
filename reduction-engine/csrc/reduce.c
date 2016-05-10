@@ -417,8 +417,26 @@ struct Cell* reduce(struct Cell* cell) {
 	return cell;
 }
 
-//(\a.(\x.x) (SELECT 1 a)) ((\a.(\b.a (b b)) (\b.a (b b))) (UNPACK-PRODUCT 1 (\x.CONSTR-0-1 1)))
+void _reduce_print_list(struct Cell* cell) {
+	while (_reduce(cell)) {}
+	assert(cell->tag == DATA);
 
-// let y   = \f . (\x.f (x x)) (\x.f (x x)),
-//     sum = y (\l . case l of (CONS x xs) -> + x (sum xs); (NIL) -> 0;)
-// in sum NIL
+	while (get_data_tag(cell) != 0) {
+		assert(cell->tag == DATA);
+		printf("cell tag = %d\n", cell->tag);
+		struct Cell* value = select_data_field(cell, 0);
+		printf("cell tag = %d\n", cell->tag);
+		struct Cell* cell = select_data_field(cell, 1);
+		printf("cell tag = %d\n", cell->tag);
+		reduce(value);
+		printf("cell tag = %d\n", cell->tag);
+		assert(value->tag == DATA);
+		printf("################################################################################");
+		printf("%d, ", get_data_num(value)); fflush(stdout);
+	}
+}
+void reduce_print_list(struct Cell* cell) {
+	printf("["); fflush(stdout);
+	_reduce_print_list(cell);
+	printf("]\n");
+}

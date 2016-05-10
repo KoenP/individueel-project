@@ -91,7 +91,7 @@ Mijn implementatie maakt verder nog onderscheid tussen datacellen, builtins (ope
 \begin{itemize}
 \item
   \texttt{DATA} cellen worden gebruikt om gegevens in op te slaan.
-  \emph{IFPL} lijkt onderscheid te maken tussen cellen die getallen opslaan en lijsten (\texttt{CONS} cellen), en eventueel nog aparte structured data cellen.
+  \emph{IFPL} lijkt onderscheid te maken tussen cellen die getallen opslaan en cellen die lijsten (\texttt{CONS} cellen) opslaan, en eventueel nog aparte structured data cellen.
   Ik zag geen reden om de data cellen bewust te maken van de betekenis van de gegevens die ze dragen, aangezien dit steeds af te leiden valt uit de context.
   Een functie die iets met de data doet, bevat genoeg informatie om de data te interpreteren.
   \texttt{DATA} cellen worden dus zowel gebruikt om primitieve data in op te slaan, zoals integers, of om naar gestructureerde datastructuren te verwijzen.
@@ -105,11 +105,29 @@ Mijn implementatie maakt verder nog onderscheid tussen datacellen, builtins (ope
   Conditionals en recursie kunnen ook worden uitgedrukt in $\lambda$-calculus, maar met ingebouwde \texttt{IF} en fixed point operatoren vermijden we heel wat overhead.
   Verder kan enkel de \texttt{SELECT} operator velden uit een gestructureerd datatype opvragen.
   \paragraph{}
+  TODO: mss dit verplaatsen naar graafreductie section?
+  Builtin operatoren verschillen ook van $\lambda$-abstracties in dat ze meer controle hebben over hoe hun argumenten gereduceerd dienen te worden.
+  De \texttt{+} operator kan bijvoorbeeld niets zinnigs doen met niet-gereduceerde bomen, en zal dus steeds zijn argumenten volledig trachten te reduceren.
+  De \texttt{IF} operator reduceert zijn predicaat eerst volledig, en daarna geeft het het correcte argument ongereduceerd terug.
+  \paragraph{}
   Behalve operatoren zijn er ook enkele constanten die als builtins worden ge{\"i}mplementeerd.
   Deze kunnen gezien worden als operatoren met 0 argumenten.
   Een voorbeeld hiervan is de \texttt{FAIL} constante, die gebruikt wordt om een gefaalde poging tot pattern matching te indiceren.
+\item
+  Hoewel constructors in principe voorgesteld zouden kunnen worden door builtins, heb ik een apart \texttt{CONSTR} celtype gedefinieerd.
+  Alle andere ingebouwde procedures hebben een vast aantal parameters per procedure: \texttt{+} heeft er steeds 2, \texttt{IF} heeft er 3, etc.
+  Aangezien de gebruiker zijn eigen constructors kan defini{\"e}ren met een arbitrair groot aantal velden, moet de \texttt{CONSTR} builtin omkunnen met een variabel aantal argumenten.
+  Het leek eenvoudiger om hiervoor een apart celtype te introduceren.
 \end{itemize}
 
 \section{Implementatie van het reductiealgoritme}
+\subsection{Selecteren van de volgende te reduceren expressie}
+We hebben al vastgesteld dat we een expressie pas wensen te evalueren wanneer haar waarde nodig is, maar we hebben nog geen procedure beschreven hoe we bepalen welke waarde we nodig hebben.
+Een expressie is reduceerbaar wanneer er zich ergens in de graaf een applicatie bevindt met in het linkerlid een $\lambda$-uitdrukking, of een applicatie van een builtin op het correcte aantal argumenten voor die builtin.
+Zo'n reduceerbare expressie noemen we een \emph{redex}.
+Een strikt evaluatiealgoritme zal steeds alle redexes reduceren.
+Bij een luie strategie kan het reductieproces stoppen voordat alle redexes gereduceerd zijn.
+\paragraph{}
+
 
 \end{document}

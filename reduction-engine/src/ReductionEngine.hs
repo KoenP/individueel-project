@@ -8,7 +8,8 @@ module ReductionEngine ( CellPtr
                        , makeConstructor
                        , printCell
                        , reduce
-                       , testReductionEngine) where
+                       , reducePrintList
+                       ) where
 
 import Foreign.C
 import Foreign.C.String
@@ -30,6 +31,7 @@ foreign import ccall unsafe "set_cell_constructor" _set_cell_constructor :: Ptr 
 foreign import ccall unsafe "select_data_field" _select_data_field :: Ptr () -> CSize -> IO (Ptr ())
 foreign import ccall unsafe "print_cell" _print_cell :: Ptr () -> IO ()
 foreign import ccall unsafe "reduce" _reduce :: Ptr () -> IO (Ptr ())
+foreign import ccall unsafe "reduce_print_list" _reduce_print_list :: Ptr () -> IO ()
 
 makeCell :: (Ptr () -> IO ()) -> IO CellPtr
 makeCell set = do
@@ -69,24 +71,5 @@ printCell (CellPtr c) = _print_cell c
 reduce :: CellPtr -> IO CellPtr
 reduce (CellPtr c) = fmap CellPtr (_reduce c)
 
-
---struct Cell* make_empty_cell();
---void set_cell_app(struct Cell* c, struct Cell* ptr1, struct Cell* ptr2);
---void set_cell_abstr(struct Cell* c, Symbol sym, struct Cell* body);
---void set_cell_number(struct Cell* c, int num);
---void set_cell_builtin(struct Cell* c, Builtin op);
---void set_cell_empty_data(struct Cell* c, StructuredDataTag tag, size_t size);
-
--- (car (cons 5 nil))
-testReductionEngine :: IO ()
-testReductionEngine = do
-  cons <- makeConstructor 1 2
-  nil <- makeConstructor 0 0
-  car <- makeBuiltin 3
-
-  five <- makeNumber 5
-  cons5 <- makeApp cons five
-  list <- makeApp cons5 nil
-  fiveAgain <- makeApp car list
-
-  printCell fiveAgain
+reducePrintList :: CellPtr -> IO ()
+reducePrintList (CellPtr c) = _reduce_print_list c
