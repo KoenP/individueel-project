@@ -178,9 +178,10 @@ conformalityTransformation (pat@(ConstrPat tdef sym pats), b) = (rhs, lhs)
       rhs = ConstrPat nTupType (getConstrName nTupConstr) (map VarPat vars)
       lhs = EL.FatbarExpr app (EL.ConstExpr ErrorConst)
       app = EL.AppExpr abstr b
-      abstr = EL.AbstrExpr pat $ EL.makeApp (EL.VarExpr $ getConstrName nTupConstr)
+      abstr = EL.AbstrExpr pat $ EL.makeApp (EL.ConstExpr $ ConstrConst (DataTag 0) n)
                                             (EL.VarExpr $ head vars)
                                             (map EL.VarExpr $ tail vars)
+      n = length (getConstrFields nTupConstr)
       nTupConstr = head $ getTypeConstructors nTupType
       nTupType = tupleType (length vars)
       vars = toList (patVariables pat)

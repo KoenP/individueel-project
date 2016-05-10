@@ -15,3 +15,15 @@ letrec fac = \n . IF (= n 0) 1 (* n (fac (- n 1))) in fac 0
 let second = \(CONS x (CONS y z)).y in second NIL
 
 letrec nth = \(CONS x xs) n. IF (= n 0) x (nth xs (- n 1)), map = \f l. case l of (NIL) -> NIL; (CONS x xs) -> CONS (f x) (map f xs);, integers = CONS 0 (map (+ 1) integers) in nth integers 4
+
+-- VOOR MET PRINT LIST DINGES
+letrec take = \n l . IF (= n 0) NIL (let (CONS x xs) = l in CONS x (take (- n 1) xs)), map = \f l. case l of (NIL) -> NIL; (CONS x xs) -> CONS (f x) (map f xs);, integers = CONS 0 (map (+ 1) integers) in take 20 integers
+
+letrec take = \n l . IF (= n 0) NIL (\(CONS x xs). (CONS x (take (- n 1) xs)) l), map = \f l. case l of (NIL) -> NIL; (CONS x xs) -> CONS (f x) (map f xs);, integers = CONS 0 (map (+ 1) integers) in take 20 integers
+
+letrec take = \n l . IF (= n 0) NIL (case l of (CONS x xs) -> CONS x (take (- n 1) xs); (NIL) -> ERROR;), map = \f l. case l of (NIL) -> NIL; (CONS x xs) -> CONS (f x) (map f xs);, integers = CONS 0 (map (+ 1) integers) in take 20 integers
+
+
+
+WERKT NIET
+let (CONS x xs) = (CONS 1 (CONS 2 (CONS 3 NIL))) in xs

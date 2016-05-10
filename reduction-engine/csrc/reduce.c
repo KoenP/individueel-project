@@ -413,7 +413,6 @@ int _reduce(struct Cell* cell) {
 
 struct Cell* reduce(struct Cell* cell) {
 	while (_reduce(cell) == 1) {}
-	printf("RESULT %p = \n\t", cell); print_cell(cell);
 	return cell;
 }
 
@@ -421,18 +420,26 @@ void _reduce_print_list(struct Cell* cell) {
 	while (_reduce(cell)) {}
 	assert(cell->tag == DATA);
 
+	if (get_data_tag(cell) != 0) {
+		assert(cell->tag == DATA);
+		struct Cell* value = select_data_field(cell, 0);
+		struct Cell* tail = select_data_field(cell, 1);
+		reduce(value);
+		assert(value->tag == DATA);
+		printf("%d", get_data_num(value)); fflush(stdout);
+		cell = tail;
+		while (_reduce(cell)) {}
+	}
+
 	while (get_data_tag(cell) != 0) {
 		assert(cell->tag == DATA);
-		printf("cell tag = %d\n", cell->tag);
 		struct Cell* value = select_data_field(cell, 0);
-		printf("cell tag = %d\n", cell->tag);
-		struct Cell* cell = select_data_field(cell, 1);
-		printf("cell tag = %d\n", cell->tag);
+		struct Cell* tail = select_data_field(cell, 1);
 		reduce(value);
-		printf("cell tag = %d\n", cell->tag);
 		assert(value->tag == DATA);
-		printf("################################################################################");
-		printf("%d, ", get_data_num(value)); fflush(stdout);
+		printf(", %d", get_data_num(value)); fflush(stdout);
+		cell = tail;
+		while (_reduce(cell)) {}
 	}
 }
 void reduce_print_list(struct Cell* cell) {
