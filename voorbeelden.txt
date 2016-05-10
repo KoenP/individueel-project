@@ -26,4 +26,4 @@ letrec take = \n l . IF (= n 0) NIL (case l of (CONS x xs) -> CONS x (take (- n 
 
 
 WERKT NIET
-let (CONS x xs) = (CONS 1 (CONS 2 (CONS 3 NIL))) in xs
+let (CONS x xs) = (CONS 1 (CONS 2 (CONS 3 NIL))) in x

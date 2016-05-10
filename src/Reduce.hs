@@ -4,9 +4,13 @@ import Control.Applicative ((<$>), (<*>))
 import qualified ReductionEngine as RE
 import qualified Lambda as L
 import Constant
+import ResultType
 
-reduce :: L.Expr -> IO ()
-reduce expr = buildGraph expr >>= RE.reducePrintList --RE.reduce >>= RE.printCell
+reduce :: L.Expr -> ResultType -> IO ()
+reduce expr rt = do
+  cellPtr <- buildGraph expr
+  RE.printReductionResult cellPtr (resultTypeToString rt)
+--RE.reduce >>= RE.printCell
 
 buildGraph :: L.Expr -> IO RE.CellPtr
 buildGraph (L.Var sym) = RE.makeVar sym

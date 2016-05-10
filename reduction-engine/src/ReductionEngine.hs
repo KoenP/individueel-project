@@ -7,8 +7,7 @@ module ReductionEngine ( CellPtr
                        , makeBuiltin
                        , makeConstructor
                        , printCell
-                       , reduce
-                       , reducePrintList
+                       , printReductionResult
                        ) where
 
 import Foreign.C
@@ -30,8 +29,7 @@ foreign import ccall unsafe "set_cell_constructor" _set_cell_constructor :: Ptr 
 
 foreign import ccall unsafe "select_data_field" _select_data_field :: Ptr () -> CSize -> IO (Ptr ())
 foreign import ccall unsafe "print_cell" _print_cell :: Ptr () -> IO ()
-foreign import ccall unsafe "reduce" _reduce :: Ptr () -> IO (Ptr ())
-foreign import ccall unsafe "reduce_print_list" _reduce_print_list :: Ptr () -> IO ()
+foreign import ccall unsafe "print_reduction_result" print_reduction_result :: Ptr () -> CString -> CInt -> IO ()
 
 makeCell :: (Ptr () -> IO ()) -> IO CellPtr
 makeCell set = do
@@ -68,8 +66,7 @@ makeConstructor tag nargs = makeCell set
 printCell :: CellPtr -> IO ()
 printCell (CellPtr c) = _print_cell c
 
-reduce :: CellPtr -> IO CellPtr
-reduce (CellPtr c) = fmap CellPtr (_reduce c)
-
-reducePrintList :: CellPtr -> IO ()
-reducePrintList (CellPtr c) = _reduce_print_list c
+printReductionResult :: CellPtr -> String -> IO ()
+printReductionResult (CellPtr c) outputType
+    = withCString outputType
+    $ \outputTypeCStr -> print_reduction_result c outputTypeCStr 1

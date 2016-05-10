@@ -15,6 +15,7 @@ import qualified ReductionEngine as RE
 import Reduce
 import Generic.Varia (showError, showEitherResult)
 import LambdaViz
+import ResultType
 
 data RunMode = Compile FilePath
              | Execute FilePath
@@ -37,7 +38,7 @@ run :: ConstructorLookup -> RunMode -> IO ()
 --                       . fillInTypeInfo cl
 --                       . stripError
 --                       . parseExpr)
-run cl Repl = repl cl (\e -> print e >> lambdaViz e >> reduce e)
+run cl Repl = repl cl (\e -> print e >> reduce e (ListResult IntResult))
        
 repl :: ConstructorLookup -> (L.Expr -> IO ()) -> IO ()
 repl constrLookup process = do
