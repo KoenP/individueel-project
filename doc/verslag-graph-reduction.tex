@@ -121,12 +121,69 @@ Mijn implementatie maakt verder nog onderscheid tussen datacellen, builtins (ope
 \end{itemize}
 
 \section{Implementatie van het reductiealgoritme}
-\subsection{Selecteren van de volgende te reduceren expressie}
 We hebben al vastgesteld dat we een expressie pas wensen te evalueren wanneer haar waarde nodig is, maar we hebben nog geen procedure beschreven hoe we bepalen welke waarde we nodig hebben.
+We weten dat ons programma in elk geval uiteindelijk een zekere output moet genereren.
+Tot dit eind kunnen we een printing mechanisme voorzien dat het resultaat van ons programma gaat weergeven op de command line.
+\paragraph{}
+Bij een strikte zuivere taal zouden we het programma eerst volledig reduceren, en daarna het resultaat aan het printing mechanisme geven om zo de output te genereren.
+\paragraph{}
+Bij onze luie taal loopt dit anders: de print functie gaat de graafreductie aandrijven door de graaf steeds net voldoende te reduceren om het volgende element te kunnen uitprinten.
+Indien het resultaat van ons programma een eenvoudig geheel getal is, zien we op dit hoogste niveau niet zo veel verschil: de graaf moet volledig worden gereduceerd tot een enkele \texttt{DATA} cel die een geheel getal bevat.
+\paragraph{}
+Het wordt interessanter wanneer het resultaat van het programma een lijst is.
+Als we in een klassieke imperatieve taal een proces willen beschrijven dat een zeer lange reeks resultaten produceert, dan doen we dat gewoonlijk door middel van een lus die een resultaat produceert en onmiddellijk wegschrijft, waarna het resultaat zelf uit het geheugen verwijderd of overschreven kan worden.
+\paragraph{}
+In een zuiver functionele taal hebben we deze optie niet, omdat we schrijfacties en berekeningen niet kunnen afwisselen.
+Het programma moet dus een lijst met alle resultaten produceren.
+Als het printing mechanisme echter vereist dat de volledige lijst wordt ge{\"e}valueerd voordat het begint met resultaten wegschrijven, dan betekent dit dat de volledige lijst eerst in het werkgeheugen van de computer moet worden geplaatst.
+Dit is duidelijk een inferieure oplossing in vergelijking met de aanpak van de imperatieve taal: het verbruik van werkgeheugen schaalt lineair met de lengte van de output in het functionele programma!
+\paragraph{}
+Om dit te vermijden zal de outputprocedure steeds net voldoende reduceren om 1 resultaat te kunnen wegschrijven.
+Wanneer een resultaat is weggeschreven, zal de node die het resultaat beschrijft worden losgekoppeld van het deel van de graaf waar we in aan het werken zijn.
+Als er geen andere nodes nog verwijzen naar het resultaat, zal in een evaluator met geheugenmanagement dit resultaat kunnen worden verwijderd uit het geheugen.
+
+
+\subsection{Selecteren van de volgende te reduceren expressie}
+\paragraph{}
 Een expressie is reduceerbaar wanneer er zich ergens in de graaf een applicatie bevindt met in het linkerlid een $\lambda$-uitdrukking, of een applicatie van een builtin op het correcte aantal argumenten voor die builtin.
+\paragraph{}
 Zo'n reduceerbare expressie noemen we een \emph{redex}.
+\paragraph{}
 Een strikt evaluatiealgoritme zal steeds alle redexes reduceren.
-Bij een luie strategie kan het reductieproces stoppen voordat alle redexes gereduceerd zijn.
+Met andere woorden, het brengt de graaf in \emph{normal form}.
+\paragraph{}
+Zoals we al hebben vastgesteld, wensen we niet noodzakelijk alle redexes te reduceren alvorens controle terug te geven aan het printing mechanisme.
+Kortom, we willen normal-order reductie volgen, maar we willen dat de reductie ophoudt wanneer er geen \emph{top-level redex} meer is.
+Een graaf die geen top-level redex meer heeft is in \emph{weak head normal form}.
+Een expressie is in weak head normal form wanneer ze van de vorm \texttt{F E1 E2 ... En} is met $n \geq 0$, en
+\begin{enumerate}
+\item \texttt{F} is een variabele of dataobject, OF
+\item \texttt{F} is een $\lambda$-abstractie of builtin operator en \texttt{(F E1 E2 ... Em)} is geen redex voor eender welke $m \leq n$.
+\end{enumerate}
+\paragraph{}
+Om even samen te vatten hoe het reductiealgoritme er momenteel uitziet:
+\begin{enumerate}
+\item
+  Het printing mechanisme roept de reduce functie op op de knoop die het aanknopingspunt vormt van het programma.
+\item
+  De reduce functie reduceert de graaf tot die zich in \emph{weak head normal form (WHNF)} bevindt.
+\item
+  Indien het resultaat van de reductie een lijst is, gaat het printing mechanisme zichzelf recursief oproepen eerst op het eerste element van de lijst, en dan op de rest van de lijst.
+  \paragraph{}
+  Indien het resultaat van de reductie een geheel getal (of een ander primitief datatype) is, wordt dit onmiddellijk uitgeprint en is de huidige call van de print procedure klaar.
+\end{enumerate}
+Omdat de type-informatie van de data uitgewist is tijdens runtime, moet het printing mechanisme in mijn implementatie bij de compilatie op de hoogte worden gebracht wat het type van de output zal zijn (bv ``een lijst van lijsten van integers'').
+Wanneer de typechecker ge{\"i}mplementeerd is zal dit automatisch gebeuren, nu moet de informatie nog handmatig worden meegegeven.
+
+\subsection{Hoe de volgende top-level redex te vinden}
+De expressie die we wensen te reduceren kan enkel van de vorm \texttt{f E1 E2 ... En} zijn.
+We beschouwen alle mogelijkheden voor \texttt{f}:
+\begin{enumerate}
+\item \texttt{f} is een data-object: De expressie is in WHNF dus we zijn klaar.
+\item \texttt{f} is een builtin operator of constructor die $k$ argumenten vereist: De expressie is in WHNF als en slechts als $n < k$. In het andere geval is de regex de expressie \texttt{f E1 ... Ek}. De reductie die erop volgt volgt builtin-specifieke regels.
+\item \texttt{f} is een $\lambda$-abstractie: Als er een argument beschikbaar is, dan is \texttt{F E1} de redex.
+\end{enumerate}
+TODO illustratie, evt figuren uit boek p 201
 \paragraph{}
 
 
