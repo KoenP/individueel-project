@@ -13,7 +13,7 @@
 \usetikzlibrary{arrows}
 \onehalfspacing
 
-\DeclareGraphicsExtensions{.pdf}
+\DeclareGraphicsExtensions{.pdf,.png}
 
 \begin{document}
 \lstset{language=Haskell}
@@ -44,8 +44,6 @@ Als we het programma voorstellen als een graaf in plaats van een boom, dan kunne
 Bij het evalueren van een argument zullen we ervoor zorgen dat de wortelnode van het argument wordt overschreven met het resultaat van de evaluatie.
 Elke referentie naar het argument verwijst dan automatisch en zonder extra kost naar het resultaat van de evaluatie.
 
-TODO: uitleg adhv voorbeelden.
-
 \subsection{Ori{\"e}ntatie in het project}
 Het gehele project betreft een compiler die een zuiver functionele taal via verrijkte $\lambda$-calculus vertaalt naar gewone $\lambda$-calculus.
 De bekomen $\lambda$-calculus expressie wordt dan gereduceerd in een \emph{runtime omgeving} die een graafreductiealgoritme toepast en de resultaten uitprint.
@@ -58,7 +56,8 @@ In theorie is de $\lambda$-calculus voldoende om alle programma's die we wensen 
 De basis van de graafvoorstelling is de \emph{cel}, een eenvoudige datastructuur die uit drie elementen bestaat: een \emph{tag} die aangeeft over welk type cel het gaat, en twee \emph{fields}.
 Een field kan een pointer naar een andere cel bevatten (op deze manier worden de edges van de graaf ge{\"i}mplementeerd), of een waarde waarvan de betekenis afhangt van het type cel en de context.
 
-\begin{lstlisting}[language=C,frame=single,caption={Definitie van de Cell datastructuur}]
+\begin{figure}[h]
+    \begin{lstlisting}[language=C,frame=single,caption={Definitie van de Cell datastructuur}]
 typedef enum {VAR, APP, ABSTR, DATA, BUILTIN, CONSTR} Tag;
 union Field {
 	struct Cell* ptr;
@@ -74,6 +73,7 @@ struct Cell {
 	union Field f2;
 };
 \end{lstlisting}
+\end{figure}
 
 De eerste drie celtypes implementeren de structuren van de $\lambda$-calculus, zoals beschreven in \emph{The Implementation of Functional Programming Languages (IFPL)}: variabelen, applicaties en abstracties.
 \begin{itemize}
@@ -182,15 +182,20 @@ Bij het afdalen in de spine wordt een stack bijgehouden (de \emph{spine stack}) 
 Wanneer de operator is gevonden, bevat de spine stack dus aan de top een pointer naar de operator zelf, aan de bodem een pointer naar de node vanwaar het algoritme begon te zoeken, en daartussenin pointers naar de applicatienodes die de twee uiteindes verbinden.
 De spine stack zorgt ervoor dat we snel aan de argumenten van de operator kunnen.
 Ik heb de spine stack ge{\"i}mplementeerd aan de hand van een gelinkte lijst, aangezien deze arbirtrair groot kan worden.
-TODO: evt spine stack figuur p203
-\paragraph{}
+
+\begin{figure}[h]
+  \caption{Illustratie van de spine stack}
+  \includegraphics[width=\linewidth]{images/slpj203}
+  \caption{Voorbeelden van redex selectie (redex gemarkeerd met '\$')}
+  \includegraphics[width=\linewidth]{images/slpj202}
+\end{figure}
+
 Wanneer \texttt{f} gevonden is beschouwen we volgende mogelijkheden:
 \begin{enumerate}
 \item \texttt{f} is een data-object: De expressie is in WHNF dus we zijn klaar.
 \item \texttt{f} is een builtin operator of constructor die $k$ argumenten vereist: De expressie is in WHNF als en slechts als $n < k$. In het andere geval is de redex de expressie \texttt{f E1 ... Ek}. De reductie die erop volgt volgt builtin-specifieke regels.
 \item \texttt{f} is een $\lambda$-abstractie: Als er een argument beschikbaar is, dan is \texttt{F E1} de redex.
 \end{enumerate}
-TODO illustratie, evt figuren uit boek p 201
 \paragraph{}
 
 \subsection{Graafreductie}
@@ -200,7 +205,7 @@ De reductieprocedure wordt bepaald door het type van de operator.
 Ten eerste is er het triviale geval dat de operator een \texttt{DATA} cel is: in dit geval moet er niets gebeuren.
 \emph{IFPL} maakt verder onderscheid tussen lambda-abstracties en builtin functies. Mijn implementatie beschouwt ook constructors nog als een apart geval.
 
-\subsubsection{Reductie van $\lambda$-expressies}
+\subsubsection{Reductie van $\lambda$-abstracties}
 In tegenstelling tot strikte talen gaat een luie taal het argument van een functie niet eerst evalueren voordat het argument wordt gesubstitueerd voor de vrije voorvallen van de formele parameter.
 Een na{\"i}ve aanpak zou zijn om elk voorval van de formele parameter te vervangen door een kopie van het argument.
 Het is makkelijk te zien dat dit tot dubbel werk kan leiden: wanneer de parameter meerdere keren wordt gebruikt in het lichaam van de functie zal mogelijks de evaluatie van de redexes in het argument meerdere keren plaatsvinden.
@@ -208,12 +213,23 @@ Verder kan het onge{\"e}valueerde argument zelf redexes bevatten en dus arbitrai
 Kopie{\"e}n hiervan maken zou veel geheugen kunnen kosten.
 \paragraph{}
 De oplossing voor dit probleem is de reden waarom we met grafen en niet met bomen werken: we gaan elk voorval van de parameter vervangen door een \emph{pointer} naar het argument.
-(TODO: figuur p208).
+
+\begin{figure}[h]
+  \caption{Pointersubstitutie}
+  \includegraphics[width=\linewidth]{images/slpj208}
+\end{figure}
+
+\paragraph{}
 Als een argument nooit wordt gebruikt wordt het nog steeds nooit ge{\"e}valueerd, maar als het resultaat van de evaluatie van een argument minstens 1 keer nodig is, wordt het beschikbaar gemaakt voor alle voorvallen ervan.
 \paragraph{}
 Het wordt nu ook duidelijk waarom we de wortel van de redex na evaluatie steeds \emph{overschrijven} met het resultaat.
 Deze strategie zorgt ervoor dat alle ge{\"i}nteresseerde partijen zonder meerkost een beeld krijgen op het resultaat: de node waar hun pointers naar wijzen wordt aangepast zodat het resultaat steeds onmiddellijk beschikbaar is.
-TODO p209
+
+\begin{figure}[h]
+  \caption{Overschrijven van de wortel van de redex}
+  \includegraphics[width=\linewidth]{images/slpj209}
+\end{figure}
+
 \paragraph{}
 Het is niet onwaarschijnlijk dat een programma meerdere keren dezelfde lambda-abstracties wenst te gebruiken.
 Het zal dus niet mogelijk zijn om tijdens het evaluatieproces in het lichaam van de lambda-expressie zelf aanpassingen te maken.
