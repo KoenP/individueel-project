@@ -9,10 +9,6 @@ struct SpineStack {
 	struct Cell* cell;
 	struct SpineStack* base;
 };
-struct Dump {
-	int depth;
-	struct Dump* base;
-};
 struct SelectRedexResult {
 	struct Cell* redex;
 	struct SpineStack* spine_stack;
