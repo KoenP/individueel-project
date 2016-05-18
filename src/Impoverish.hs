@@ -11,33 +11,32 @@ import Data.Set (toList)
 
 -- Transform the enriched lambda calculus to ordinary lambda calculus.
 impoverish :: EL.Expr TypeDef -> L.Expr
+impoverish enriched = case EL.out enriched of
+    -- An variable in ELC can be literally translated to a variable in LC.
+    (EL.VarExpr v) -> L.Var v
 
--- An variable in ELC can be literally translated to a variable in LC.
-impoverish (EL.VarExpr v)     = L.Var v
+    -- A constant in ELC can be literally translated to a constant in LC.
+    (EL.ConstExpr k) -> L.Const k
 
--- A constant in ELC can be literally translated to a constant in LC.
-impoverish (EL.ConstExpr k)   = L.Const k
+    -- An application in ELC can be translated by recursively applying the
+    -- impoverish algorithm to the operands.
+    (EL.AppExpr e f) -> L.App (impoverish e) (impoverish f)
 
--- An application in ELC can be translated by recursively applying the
--- impoverish algorithm to the operands.
-impoverish (EL.AppExpr e f)   = L.App (impoverish e) (impoverish f)
-
--- ELC abstractions without pattern matching can be directly translated
--- into LC abstractions by recursively impoverishing the body.
--- The translation of pattern-matching ELC abstractions depends
--- on the pattern. See section 6.1 "Transforming Pattern-matching Lambda
--- Abstractions" (page 104).
--- 1. If k is a constant pattern
---    \k.E <=> \v.IF (= k v) E FAIL
--- 2. If p is a product-constructor pattern
---    \(t p1 ... pr).E <=> UNPACK-PRODUCT-t (\p1 ... \pr.E)
--- 3. If p is a sum-constructor pattern
---    \(s p1 ... pr).E <=> UNPACK-SUM-s (\p1 ... \pr.E)
-impoverish (EL.AbstrExpr p e)
-    = case p of
+    -- ELC abstractions without pattern matching can be directly translated
+    -- into LC abstractions by recursively impoverishing the body.
+    -- The translation of pattern-matching ELC abstractions depends
+    -- on the pattern. See section 6.1 "Transforming Pattern-matching Lambda
+    -- Abstractions" (page 104).
+    -- 1. If k is a constant pattern
+    --    \k.E <=> \v.IF (= k v) E FAIL
+    -- 2. If p is a product-constructor pattern
+    --    \(t p1 ... pr).E <=> UNPACK-PRODUCT-t (\p1 ... \pr.E)
+    -- 3. If p is a sum-constructor pattern
+    --    \(s p1 ... pr).E <=> UNPACK-SUM-s (\p1 ... \pr.E)
+    (EL.AbstrExpr p e) -> case p of
         (VarPat x) -> L.Abstr x (impoverish e)
 
-      -- Constant pattern.
+        -- Constant pattern.
         (ConstPat k)
             -> let e' = impoverish e
                    v  = head $ L.nonfreeSymbols e'
@@ -66,11 +65,9 @@ impoverish (EL.AbstrExpr p e)
                                              (L.Const (IntConst tag))
                                              [ L.Const (IntConst arity)
                                              , impoverish (EL.makeAbstr ps e)]
-                                   -- XXX
                                 
--- Transform let expression.
-impoverish (EL.LetExpr (p, b) e)
-    = case p of
+    -- Transform let expression.
+    (EL.LetExpr (p, b) e) -> case p of
          -- Simple let expression.
          -- let v = B in E <=> (\v.E) B
         (VarPat v) -> L.App (L.Abstr v (impoverish e)) (impoverish b)
@@ -82,62 +79,63 @@ impoverish (EL.LetExpr (p, b) e)
                         arity = case getConstructorArity tdef t of
                                   Nothing  -> error (show (t, tdef))
                                   (Just n) -> n
-                        makeSel i = EL.AppExpr (EL.ConstExpr SelectConst)
-                                               (EL.ConstExpr (IntConst i))
+                        makeSel i = EL.appExpr (EL.constExpr SelectConst)
+                                               (EL.constExpr (IntConst i))
                         r = length ps
                         sels = map makeSel [1..r]
-                        apps = map (`EL.AppExpr` EL.VarExpr v) sels
-                    in impoverish $ EL.LetExpr (VarPat v, b)
+                        apps = map (`EL.appExpr` EL.varExpr v) sels
+                    in impoverish $ EL.letExpr (VarPat v, b)
                                   $ EL.makeLet (zip ps apps) e
 
 
                --impoverishIrrefutableProductLet tdef s ps b e
                -- TODO 6.2.7 p115.
                else let newDef = conformalityTransformation (p, b)
-                    in impoverish (EL.LetExpr newDef e)
+                    in impoverish (EL.letExpr newDef e)
 
--- Transform a letrec expression.
--- TODO: handle refutable letrec into irrefutable letrec.
-impoverish (EL.LetrecExpr defs e)
-    -- Transform irrefutable letrec into irrefutable let, then recursively apply
-    -- impoverish on the result. (p114)
-    | all (irrefutable . fst) defs
-        = let nTupType   = tupleType (length defs)
-              nTupConstr = head $ getTypeConstructors nTupType
-              nTupConstrName = getConstrName nTupConstr
-              p = ConstrPat nTupType nTupConstrName (map fst defs)
-              b = EL.makeApp
-                  (EL.ConstExpr $ ConstrConst (DataTag 0) (length defs))
-                  (snd $ head defs)
-                  (map snd $ tail defs)
-              abstr = EL.AbstrExpr p b
-              [f, x] = EL.getNewVariables abstr 2
-              yComb = let [fPat, xPat] = map VarPat [f, x]
-                          [fVar, xVar] = map EL.VarExpr [f, x]
-                          body = EL.AbstrExpr xPat
-                                 $ EL.AppExpr fVar
-                                 $ EL.AppExpr xVar xVar
-                      in EL.AbstrExpr fPat (EL.AppExpr body body)
-              yExpr = EL.AppExpr yComb abstr
-          in impoverish $ EL.LetExpr (p,yExpr) e
+    -- Transform a letrec expression.
+    -- TODO: handle refutable letrec into irrefutable letrec.
+    (EL.LetrecExpr defs e) -> f
+        where f
+                -- Transform irrefutable letrec into irrefutable let,
+                -- then recursively apply impoverish on the result. (p114)
+                | all (irrefutable . fst) defs
+                    = let nTupType   = tupleType (length defs)
+                          nTupConstr = head $ getTypeConstructors nTupType
+                          nTupConstrName = getConstrName nTupConstr
+                          p = ConstrPat nTupType nTupConstrName (map fst defs)
+                          b = EL.makeApp
+                              (EL.constExpr $ ConstrConst (DataTag 0) (length defs))
+                              (snd $ head defs)
+                              (map snd $ tail defs)
+                          abstr = EL.abstrExpr p b
+                          [f, x] = EL.getNewVariables abstr 2
+                          yComb = let [fPat, xPat] = map VarPat [f, x]
+                                      [fVar, xVar] = map EL.varExpr [f, x]
+                                      body = EL.abstrExpr xPat
+                                             $ EL.appExpr fVar
+                                             $ EL.appExpr xVar xVar
+                                  in EL.abstrExpr fPat (EL.appExpr body body)
+                          yExpr = EL.appExpr yComb abstr
+                      in impoverish $ EL.letExpr (p,yExpr) e
 
-    -- Transform general letrec into irrefutable letrec.
-    -- TODO 6.2.7 p115.
-    | otherwise = let newDefs = map (\def -> if irrefutable (fst def)
-                                             then def
-                                             else conformalityTransformation def)
-                                    defs
-                  in impoverish (EL.LetrecExpr newDefs e)
+                -- Transform general letrec into irrefutable letrec.
+                -- TODO 6.2.7 p115.
+                | otherwise = let newDefs = map
+                                            (\def -> if irrefutable (fst def)
+                                                     then def
+                                                     else conformalityTransformation def)
+                                            defs
+                            in impoverish (EL.letrecExpr newDefs e)
 
--- Transform a case expression.
-impoverish (EL.CaseExpr expr cs)
-    = case cs of
+    -- Transform a case expression.
+    (EL.CaseExpr expr cs) -> case cs of
         -- Case expressions involving a product type (p122 6.3.1).
         -- possible optimization p124 6.3.3 
         [(ConstrPat (TypeDef _ [constr]) sym vs, e1)]
             -> let arity = length $ getConstrFields constr
-                   unpack = EL.AppExpr (EL.ConstExpr UnpackProductConst)
-                                       (EL.ConstExpr (IntConst arity)) -- XXX
+                   unpack = EL.appExpr (EL.constExpr UnpackProductConst)
+                                       (EL.constExpr (IntConst arity)) -- XXX
                    abstr = EL.makeAbstr vs e1
                in impoverish $ EL.makeApp unpack abstr [expr]
 
@@ -152,35 +150,35 @@ impoverish (EL.CaseExpr expr cs)
                          arity sym = fromJust (getConstructorArity tdef sym)
                          unpack (ConstrPat _ si vs, e)
                              = EL.makeApp
-                               (EL.ConstExpr UnpackSumConst)
-                               (EL.ConstExpr (IntConst (tag si)))
-                               [ EL.ConstExpr (IntConst (arity si))
+                               (EL.constExpr UnpackSumConst)
+                               (EL.constExpr (IntConst (tag si)))
+                               [ EL.constExpr (IntConst (arity si))
                                , EL.makeAbstr vs e
                                ]
                          unpackTerms = map unpack cs
                          abstrParam = EL.getNewVariable
-                                      $ foldl1 EL.AppExpr unpackTerms
+                                      $ foldl1 EL.appExpr unpackTerms
                          abstrBody = foldl1
-                                     EL.FatbarExpr
-                                     $ map (`EL.AppExpr` EL.VarExpr abstrParam)
+                                     EL.fatbarExpr
+                                     $ map (`EL.appExpr` EL.varExpr abstrParam)
                                            unpackTerms
                      in impoverish
-                        $ EL.AppExpr (EL.AbstrExpr (VarPat abstrParam) abstrBody) expr
+                        $ EL.appExpr (EL.abstrExpr (VarPat abstrParam) abstrBody) expr
 
                    
-impoverish (EL.FatbarExpr e f)
-    = L.makeApp (L.Const FatbarConst) (impoverish e) [impoverish f]
+    (EL.FatbarExpr e f) ->
+        L.makeApp (L.Const FatbarConst) (impoverish e) [impoverish f]
 
 -- Transform a refutable pattern into an irrefutable one (p117).
 conformalityTransformation :: Def TypeDef -> Def TypeDef
 conformalityTransformation (pat@(ConstrPat tdef sym pats), b) = (rhs, lhs)
     where
       rhs = ConstrPat nTupType (getConstrName nTupConstr) (map VarPat vars)
-      lhs = EL.FatbarExpr app (EL.ConstExpr ErrorConst)
-      app = EL.AppExpr abstr b
-      abstr = EL.AbstrExpr pat $ EL.makeApp (EL.ConstExpr $ ConstrConst (DataTag 0) n)
-                                            (EL.VarExpr $ head vars)
-                                            (map EL.VarExpr $ tail vars)
+      lhs = EL.fatbarExpr app (EL.constExpr ErrorConst)
+      app = EL.appExpr abstr b
+      abstr = EL.abstrExpr pat $ EL.makeApp (EL.constExpr $ ConstrConst (DataTag 0) n)
+                                            (EL.varExpr $ head vars)
+                                            (map EL.varExpr $ tail vars)
       n = length (getConstrFields nTupConstr)
       nTupConstr = head $ getTypeConstructors nTupType
       nTupType = tupleType (length vars)
@@ -197,7 +195,7 @@ irrefutable _                                = False
 
 -- Literally lift a simple lambda expression into the enriched lambda calculus.
 embed :: L.Expr -> EL.Expr t
-embed (L.Var s     ) = EL.VarExpr s
-embed (L.Const c   ) = EL.ConstExpr c
-embed (L.App e f   ) = EL.AppExpr (embed e) (embed f)
-embed (L.Abstr s e ) = EL.AbstrExpr (VarPat s) (embed e)
+embed (L.Var s     ) = EL.varExpr s
+embed (L.Const c   ) = EL.constExpr c
+embed (L.App e f   ) = EL.appExpr (embed e) (embed f)
+embed (L.Abstr s e ) = EL.abstrExpr (VarPat s) (embed e)

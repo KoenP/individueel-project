@@ -1,39 +1,27 @@
-module EnrichedLambdaParse (parseExpr, unsafeParseExpr) where
-import EnrichedLambda
+module TypedLambdaParse where
+import qualified TypedLambda as TL
+import qualified EnrichedLambda as EL
 import Constant
 import Pattern
+import TypeDef (TypeDef, Constructor)
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 
--- Parses a String into an extended lambda expression.
--- There are multiple valid notations for the lambda calculus.
--- This parser mostly adheres to the notation used in
---   "The Implementation of Functional Programming Languages" (p40).
--- Function application and fatbar ([]) operator associate to the left.
--- Function application has higher precedence than fatbar. It is recommended
---   to use parens in stead of relying on this rule.
--- Abstractions extend as far right as possible.
--- There are a few deviations from the book notation:
---   1. Lambda is written as backslash (\).
---   2. Fatbar is written as an opening square bracket immediately followed by
---      a closing square bracket ([]).
---   3. The definitions in a let(rec) expression are separated by commas.
---   4. Each entry in a case expression must be followed by a semicolon.
-parseExpr :: String -> Either ParseError (Expr ())
-parseExpr = parse exprParser ""
+parseTypedExpr :: String -> Either ParseError (TL.TypedExpr ())
+parseTypedExpr = parse typedExprParser ""
 
--- Parse the input string under the assumption that it is parseable.
--- Should only be used for testing.
-unsafeParseExpr :: String -> (Expr ())
-unsafeParseExpr s = let (Right e) = parseExpr s in e
+unsafeParseTypedExpr :: String -> (TL.TypedExpr ())
+unsafeParseTypedExpr s = let (Right td) = parseTypedExpr s in td
 
--- Parser for enriched lambda calculus.
-exprParser :: Parser (Expr ())
-exprParser = m_whiteSpace >> expr <* eof
+-- Parser for typed lambda calculus.
+typedExprParser :: Parser (TL.TypedExpr ())
+typedExprParser = m_whiteSpace >> typedExpr <* eof
     where
+      typedExpr = TL.TypedExpr <$> many typeDef <*> expr
+
       expr =     (abstr       <?> "abstraction"       )
              <|> (letExpr     <?> "let expression"    )
              <|> (letrecExpr  <?> "letrec expression" )
@@ -51,7 +39,7 @@ exprParser = m_whiteSpace >> expr <* eof
                  ps <- many1 pattern
                  m_whiteSpace >> char '.' >> m_whiteSpace
                  body <- expr
-                 return $ foldr ((.) . abstrExpr) id ps body
+                 return $ foldr ((.) . EL.AbstrExpr) id ps body
 
       -- Parses a simple let expression.
       -- A let expression with multiple comma-separated definitions is 
@@ -60,7 +48,7 @@ exprParser = m_whiteSpace >> expr <* eof
                    ds <- sepBy1 definition (m_reservedOp ",")
                    m_reserved "in"
                    e <- expr
-                   return $ foldr ((.) . EnrichedLambda.letExpr) id ds e
+                   return $ foldr ((.) . EL.LetExpr) id ds e
                           
       -- Parses a recursive let expression.
       -- There is a deviation from the book notation here: definitions
@@ -69,7 +57,7 @@ exprParser = m_whiteSpace >> expr <* eof
                       ds <- sepBy1 definition (m_reservedOp ",")
                       m_reserved "in"
                       e <- expr
-                      return (EnrichedLambda.letrecExpr ds e)
+                      return (EL.LetrecExpr ds e)
 
       -- Parses a definition. This is used in parsing let
       -- and letrec expressions.
@@ -85,7 +73,7 @@ exprParser = m_whiteSpace >> expr <* eof
                     s <- expr
                     m_reserved "of"
                     cs <- many1 caseEntry
-                    return (EnrichedLambda.caseExpr s cs)
+                    return (EL.CaseExpr s cs)
 
       -- Parses a single pattern-expression pair in a case statement.
       caseEntry = do p <- pattern
@@ -102,16 +90,16 @@ exprParser = m_whiteSpace >> expr <* eof
       term = constExpr <|> varExpr <|> m_parens expr
 
       -- Parses variables.
-      varExpr = fmap EnrichedLambda.varExpr m_identifier
+      varExpr = fmap EL.VarExpr m_identifier
 
       -- Parses constants.
-      constExpr = fmap EnrichedLambda.constExpr constant
+      constExpr = fmap EL.ConstExpr constant
       
       -- Table of operators for fat bar ([]) and regular applications.
       -- Weirdly, application seemed easiest to express as an infix whitespace
       -- operator.
-      table = [ [Infix (m_whiteSpace    >> return appExpr    ) AssocLeft]
-              , [Infix (m_reserved "[]" >> return fatbarExpr ) AssocLeft]
+      table = [ [Infix (m_whiteSpace    >> return EL.AppExpr    ) AssocLeft]
+              , [Infix (m_reserved "[]" >> return EL.FatbarExpr ) AssocLeft]
               ]
       
       -- Parse a pattern - either a variable or a constructor followed by a
@@ -136,6 +124,17 @@ exprParser = m_whiteSpace >> expr <* eof
       integer = (fmap read (many1 digit) <* m_whiteSpace)
                 <|> (try $ m_parens $ option id (char '-' >> pure negate) <*> integer)
 
+      -- Parse a type definition.
+      typeDef = do m_reserved "data"
+                   s <- m_identifier
+                   m_reservedOp "="
+                   cs <- sepBy1 constructor (m_reservedOp "|")
+                   m_reservedOp ";"
+                   return (TypeDef s cs)
+
+      -- Parse a constructor.
+      constructor = Constructor <$> m_identifier <*> many m_identifier
+
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.
 -- All that needs to be done is to name the elements we plan on using.
@@ -152,7 +151,7 @@ ldef :: LanguageDef st
 ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
                 , reservedNames   = ["let", "letrec", "in", "case", "of",
-                                     "+", "-", "=", "IF", "_", "*"]
-                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
+                                     "+", "-", "=", "IF", "_", "*", "data"]
+                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";", "|", "="]
                 , caseSensitive   = True
                 }

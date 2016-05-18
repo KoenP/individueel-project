@@ -11,17 +11,32 @@ import qualified Data.Set as Set
 -- XXX Constants not yet implemented.
     
 -- An expression in the enriched lambda calculus.
-data Expr typeinfo = VarExpr    Symbol
-                   | ConstExpr  Constant
-                   | AppExpr    (Expr typeinfo)     (Expr typeinfo)
-                   | AbstrExpr  (Pattern typeinfo)  (Expr typeinfo)
-                   | LetExpr    (Def typeinfo)      (Expr typeinfo)
-                   | LetrecExpr [Def typeinfo]      (Expr typeinfo)
-                   | FatbarExpr (Expr typeinfo)     (Expr typeinfo)
-                   | CaseExpr   (Expr typeinfo)     [(Pattern typeinfo, Expr typeinfo)]
-                     deriving (Show, Eq)
+data ExprF typeinfo e = VarExpr    Symbol
+                      | ConstExpr  Constant
+                      | AppExpr    e                   e
+                      | AbstrExpr  (Pattern typeinfo)  e
+                      | LetExpr    (Def typeinfo)      e
+                      | LetrecExpr [Def typeinfo]      e
+                      | FatbarExpr e                   e
+                      | CaseExpr   e                   [(Pattern typeinfo, e)]
+
+-- Generic fixed point and annotation datatype.
+data Ann x f a = Ann x (f a)
+type AnnFix x f = Fix (Ann x f)
+newtype Fix f = In {out :: f (Fix f)}
+
+type Expr typeinfo = Fix (ExprF typeinfo)
 
 type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
+
+varExpr = In . VarExpr
+constExpr = In . ConstExpr
+appExpr e f = In (AppExpr e f)
+abstrExpr x f = In (AbstrExpr x f)
+letExpr def e = In (LetExpr def e)
+letrecExpr defs e = In (LetrecExpr defs e)
+fatbarExpr e f = In (FatbarExpr e f)
+caseExpr e cs = In (CaseExpr e cs)
 
 -- Given an ELC expression with no type information, return the expression
 -- with type information.
@@ -29,7 +44,7 @@ fillInTypeInfo :: (Symbol -> Maybe TypeDef)
                -> Expr ()
                -> Either ConstructorUndefinedError (Expr TypeDef)
 fillInTypeInfo g e =
-    case e of
+    fmap In $ case out e of
       (VarExpr x)         -> pure (maybe (VarExpr x) ConstExpr (getConstrConstant g x))
       (ConstExpr k)       -> pure (ConstExpr k)
       (AppExpr e f)       -> AppExpr <$> h e <*> h f
@@ -58,17 +73,17 @@ getConstrConstant f s = join $ getFromTypeDef <$> f s
 -- Convenience function to transform a list of patterns and an expression
 -- into a single nested abstraction.
 makeAbstr :: [Pattern typeinfo] -> (Expr typeinfo) -> (Expr typeinfo)
-makeAbstr ps e = foldr ((.) . AbstrExpr) id ps e
+makeAbstr ps e = foldr ((.) . abstrExpr) id ps e
 
 -- Convenience function for when you want to make a set of nested applications
 -- from a list of expressions containing at least two expressions.
 makeApp :: (Expr typeinfo) -> (Expr typeinfo) -> [(Expr typeinfo)] -> (Expr typeinfo)
-makeApp e1 e2 es = foldl AppExpr (AppExpr e1 e2) es
+makeApp e1 e2 es = foldl appExpr (appExpr e1 e2) es
 
 -- Convenience function to transform a list of definitions and an expression
 -- into a single nested let expression.
 makeLet :: [Def typeinfo] -> (Expr typeinfo) -> (Expr typeinfo)
-makeLet ds e = foldr ((.) . LetExpr) id ds e
+makeLet ds e = foldr ((.) . letExpr) id ds e
 
 -- Returns true if the definition is simple, that is, it only contains simple
 -- assignments, no pattern matching.
@@ -78,25 +93,29 @@ simpleDef _ = False
 
 -- Returns the set of variables that occur free in the expression.
 freeVariables :: Expr typeinfo -> Set Symbol
-freeVariables (VarExpr s) = Set.singleton s
-freeVariables (ConstExpr c) = Set.empty
-freeVariables (AppExpr e f) = Set.union (freeVariables e) (freeVariables f)
-freeVariables (AbstrExpr p b) = freeVariables b `Set.difference` patVariables p
-freeVariables (LetExpr (pat, a) e) = (freeVariables a `Set.union` freeVariables e)
-                                     `Set.difference`
-                                     patVariables pat
-freeVariables (LetrecExpr defs e) = 
-    let (pats, exprs) = unzip defs
-        patVarUnions = scanl1 Set.union (map patVariables pats)
-        defFreeVars = zipWith Set.difference (map freeVariables exprs) patVarUnions
-    in Set.unions defFreeVars
-           `Set.union` (freeVariables e `Set.difference` last patVarUnions)
+freeVariables e = case out e of
+                    (VarExpr s) -> Set.singleton s
+                    (ConstExpr c) -> Set.empty
+                    (AppExpr e f) -> Set.union (freeVariables e) (freeVariables f)
+                    (AbstrExpr p b) -> freeVariables b `Set.difference` patVariables p
+                    (LetExpr (pat, a) e) -> (freeVariables a `Set.union` freeVariables e)
+                                           `Set.difference`
+                                            patVariables pat
+                    (LetrecExpr defs e) ->
+                        let (pats, exprs) = unzip defs
+                            patVarUnions = scanl1 Set.union (map patVariables pats)
+                            defFreeVars = zipWith Set.difference (map freeVariables exprs) patVarUnions
+                        in Set.unions defFreeVars
+                           `Set.union`
+                           (freeVariables e `Set.difference` last patVarUnions)
        
-freeVariables (FatbarExpr e f) = Set.union (freeVariables e) (freeVariables f)
-freeVariables (CaseExpr s cases)
-    = freeVariables s `Set.union` Set.unions [freeVariables exp
-                                              `Set.difference`
-                                              patVariables pat | (pat, exp) <- cases]
+                    (FatbarExpr e f) -> Set.union (freeVariables e) (freeVariables f)
+                    (CaseExpr s cases)
+                        -> freeVariables s
+                           `Set.union`
+                            Set.unions [freeVariables exp
+                                        `Set.difference`
+                                         patVariables pat | (pat, exp) <- cases]
 
 -- Systematically generates all symbols composed of lowercase letters.
 symbols :: [Symbol]
