@@ -1,42 +1,45 @@
+{-# LANGUAGE DeriveFunctor #-}
 module EnrichedLambda where
 import Symbol
 import Pattern
 import Constant
 import TypeDef
+import Fix
 import Control.Monad (join)
 import Data.List (find)
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Function (fix)
 
--- XXX Constants not yet implemented.
-    
 -- An expression in the enriched lambda calculus.
 data ExprF typeinfo e = VarExpr    Symbol
                       | ConstExpr  Constant
                       | AppExpr    e                   e
                       | AbstrExpr  (Pattern typeinfo)  e
-                      | LetExpr    (Def typeinfo)      e
-                      | LetrecExpr [Def typeinfo]      e
+                      | LetExpr    (DefF typeinfo e)   e
+                      | LetrecExpr [DefF typeinfo e]   e
                       | FatbarExpr e                   e
                       | CaseExpr   e                   [(Pattern typeinfo, e)]
+                        deriving Functor
+instance (Show typeinfo, Show e) => Show (ExprF typeinfo e) where
+    show (VarExpr x) = "VarExpr " ++ x
+    show (ConstExpr c) = "ConstExpr " ++ show c
+    show (AppExpr e f) = "AppExpr " ++ show e ++ " " ++ show f
 
--- Generic fixed point and annotation datatype.
-data Ann x f a = Ann x (f a)
-type AnnFix x f = Fix (Ann x f)
-newtype Fix f = In {out :: f (Fix f)}
+type DefF typeinfo e = (Pattern typeinfo, e) -- Definition
+type Def typeinfo = DefF typeinfo (Expr typeinfo)
+type AnnExpr typeinfo ann = Fix (Ann ann (ExprF typeinfo))
+type Expr typeinfo = Fix (ExprF typeinfo) -- Normal ELC expression
 
-type Expr typeinfo = Fix (ExprF typeinfo)
-
-type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
-
-varExpr = In . VarExpr
-constExpr = In . ConstExpr
-appExpr e f = In (AppExpr e f)
-abstrExpr x f = In (AbstrExpr x f)
-letExpr def e = In (LetExpr def e)
+-- Pseudoconstructor boilerplate.
+varExpr           = In . VarExpr
+constExpr         = In . ConstExpr
+appExpr e f       = In (AppExpr e f)
+abstrExpr x f     = In (AbstrExpr x f)
+letExpr def e     = In (LetExpr def e)
 letrecExpr defs e = In (LetrecExpr defs e)
-fatbarExpr e f = In (FatbarExpr e f)
-caseExpr e cs = In (CaseExpr e cs)
+fatbarExpr e f    = In (FatbarExpr e f)
+caseExpr e cs     = In (CaseExpr e cs)
 
 -- Given an ELC expression with no type information, return the expression
 -- with type information.
@@ -47,7 +50,7 @@ fillInTypeInfo g e =
     fmap In $ case out e of
       (VarExpr x)         -> pure (maybe (VarExpr x) ConstExpr (getConstrConstant g x))
       (ConstExpr k)       -> pure (ConstExpr k)
-      (AppExpr e f)       -> AppExpr <$> h e <*> h f
+      (AppExpr e f)       -> AppExpr <$> fillInTypeInfo g e <*> fillInTypeInfo g f
       (AbstrExpr pat e)   -> AbstrExpr <$> fillInPatTypeInfo g pat <*> h e
       (LetExpr def e)     -> LetExpr <$> fillInDefTypeInfo def <*> h e
       (LetrecExpr defs e) -> LetrecExpr <$> sequence (map fillInDefTypeInfo defs) <*> h e
@@ -59,7 +62,6 @@ fillInTypeInfo g e =
                  (map (\(p,e)->(,) <$> fillInPatTypeInfo g p <*> h e) cases)
     where
       h = fillInTypeInfo g
-      fillInDefTypeInfo :: Def () -> Either ConstructorUndefinedError (Def TypeDef)
       fillInDefTypeInfo (p,e) = (,) <$> fillInPatTypeInfo g p <*> h e
 
 getConstrConstant :: (Symbol -> Maybe TypeDef) -> Symbol -> Maybe Constant

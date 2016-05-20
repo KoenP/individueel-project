@@ -3,25 +3,36 @@ import qualified TypedLambda as TL
 import qualified EnrichedLambda as EL
 import Constant
 import Pattern
-import TypeDef (TypeDef, Constructor)
+import Fix
+import TypeDef (TypeDef(..), Constructor(..))
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
 
-parseTypedExpr :: String -> Either ParseError (TL.TypedExpr ())
+--parseTypedExpr :: String -> Either ParseError TL.TypedProgram
 parseTypedExpr = parse typedExprParser ""
+--
+--unsafeParseTypedExpr :: String -> TL.TypedProgram
+--unsafeParseTypedExpr s = let (Right td) = parseTypedExpr s in td
 
-unsafeParseTypedExpr :: String -> (TL.TypedExpr ())
-unsafeParseTypedExpr s = let (Right td) = parseTypedExpr s in td
+tlVarExpr = In . Ann Nothing . EL.VarExpr
+tlConstExpr = In . Ann Nothing . EL.ConstExpr
+tlAbstrExpr x e = In . Ann Nothing $ (EL.AbstrExpr x e)
+tlLetExpr x e = In . Ann Nothing $ (EL.LetExpr x e)
+tlLetrecExpr x e = In . Ann Nothing $ (EL.LetrecExpr x e)
+tlCaseExpr :: TL.TypedExpr typeinfo
+           -> [(Pattern typeinfo, TL.TypedExpr typeinfo)]
+           -> TL.TypedExpr typeinfo
+tlCaseExpr e cs = In . Ann Nothing $ (EL.CaseExpr e cs)
 
 -- Parser for typed lambda calculus.
 typedExprParser :: Parser (TL.TypedExpr ())
-typedExprParser = m_whiteSpace >> typedExpr <* eof
+typedExprParser = m_whiteSpace >> expr <* eof
     where
-      typedExpr = TL.TypedExpr <$> many typeDef <*> expr
 
+      expr :: Parser (TL.TypedExpr ())
       expr =     (abstr       <?> "abstraction"       )
              <|> (letExpr     <?> "let expression"    )
              <|> (letrecExpr  <?> "letrec expression" )
@@ -35,32 +46,36 @@ typedExprParser = m_whiteSpace >> typedExpr <* eof
       -- but the notation allows multiple-argument abstractions.
       -- This parser parses multiple-argument abstractions into nested single-
       -- argument abstractions.
+      abstr :: Parser (TL.TypedExpr ())
       abstr = do m_reservedOp "\\"
                  ps <- many1 pattern
                  m_whiteSpace >> char '.' >> m_whiteSpace
                  body <- expr
-                 return $ foldr ((.) . EL.AbstrExpr) id ps body
+                 return $ foldr ((.) . tlAbstrExpr) id ps body
 
       -- Parses a simple let expression.
       -- A let expression with multiple comma-separated definitions is 
       -- translated to a nesting of single-definition let expressions.
+      letExpr :: Parser (TL.TypedExpr ())
       letExpr = do m_reserved "let"
                    ds <- sepBy1 definition (m_reservedOp ",")
                    m_reserved "in"
                    e <- expr
-                   return $ foldr ((.) . EL.LetExpr) id ds e
+                   return $ foldr ((.) . tlLetExpr) id ds e
                           
       -- Parses a recursive let expression.
       -- There is a deviation from the book notation here: definitions
       -- are separated by a comma (,).
+      letrecExpr :: Parser (TL.TypedExpr ())
       letrecExpr = do m_reserved "letrec"
                       ds <- sepBy1 definition (m_reservedOp ",")
                       m_reserved "in"
                       e <- expr
-                      return (EL.LetrecExpr ds e)
+                      return (tlLetrecExpr ds e)
 
       -- Parses a definition. This is used in parsing let
       -- and letrec expressions.
+      definition :: Parser (Pattern (), TL.TypedExpr ())
       definition = do p <- pattern
                       m_reservedOp "="
                       e <- expr
@@ -69,13 +84,15 @@ typedExprParser = m_whiteSpace >> typedExpr <* eof
       -- Parses a case expression.
       -- Deviation from book notation: all pattern-expression pairs must
       -- be terminated by a semicolon (;).
+      caseExpr :: Parser (TL.TypedExpr ())
       caseExpr = do m_reserved "case"
                     s <- expr
                     m_reserved "of"
                     cs <- many1 caseEntry
-                    return (EL.CaseExpr s cs)
+                    return (tlCaseExpr s cs)
 
       -- Parses a single pattern-expression pair in a case statement.
+      caseEntry :: Parser (Pattern (), TL.TypedExpr ())
       caseEntry = do p <- pattern
                      m_reservedOp "->"
                      e <- expr
@@ -84,22 +101,34 @@ typedExprParser = m_whiteSpace >> typedExpr <* eof
 
       -- Parses a subexpression, more specifically either a fat bar ([])
       -- application or a regular application.
-      subexpr = buildExpressionParser table term
+      subexpr :: Parser (TL.TypedExpr ())
+      subexpr = do sub <- buildExpressionParser table term
+                   ann <- typeAnnotation
+                   return sub
+                          -- TODO
 
       -- Terms in a subexpression are either variables or expressions in parens.
+      term :: Parser (TL.TypedExpr ())
       term = constExpr <|> varExpr <|> m_parens expr
 
       -- Parses variables.
-      varExpr = fmap EL.VarExpr m_identifier
+      varExpr :: Parser (TL.TypedExpr ())
+      varExpr = fmap tlVarExpr m_identifier
 
       -- Parses constants.
-      constExpr = fmap EL.ConstExpr constant
+      constExpr :: Parser (TL.TypedExpr ())
+      constExpr = fmap tlConstExpr constant
       
       -- Table of operators for fat bar ([]) and regular applications.
       -- Weirdly, application seemed easiest to express as an infix whitespace
       -- operator.
-      table = [ [Infix (m_whiteSpace    >> return EL.AppExpr    ) AssocLeft]
-              , [Infix (m_reserved "[]" >> return EL.FatbarExpr ) AssocLeft]
+      table = [ [Infix
+                 (m_whiteSpace >> return (\e f -> annotate Nothing $ EL.AppExpr e f))
+                 AssocLeft]
+              , [Infix
+                 (m_reserved "[]"
+                   >> return (\e f -> annotate Nothing $ EL.FatbarExpr e f))
+                 AssocLeft]
               ]
       
       -- Parse a pattern - either a variable or a constructor followed by a
@@ -135,6 +164,14 @@ typedExprParser = m_whiteSpace >> typedExpr <* eof
       -- Parse a constructor.
       constructor = Constructor <$> m_identifier <*> many m_identifier
 
+      -- Parse a type annotation (always optional).
+      typeAnnotation :: Parser TL.TypeAnnotation
+      typeAnnotation = option Nothing $ fmap Just (m_reservedOp "::" >> typeExpr)
+                          
+      -- Parse a type expression.
+      typeExpr :: Parser TL.Type
+      typeExpr = m_identifier >> return ()
+
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.
 -- All that needs to be done is to name the elements we plan on using.
@@ -152,6 +189,6 @@ ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
                 , reservedNames   = ["let", "letrec", "in", "case", "of",
                                      "+", "-", "=", "IF", "_", "*", "data"]
-                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";", "|", "="]
+                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";", "|", "=", "::"]
                 , caseSensitive   = True
                 }
