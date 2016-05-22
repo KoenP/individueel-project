@@ -8,8 +8,6 @@ import Data.List (find)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
--- XXX Constants not yet implemented.
-    
 -- An expression in the enriched lambda calculus.
 data Expr typeinfo = VarExpr    Symbol
                    | ConstExpr  Constant
@@ -19,9 +17,20 @@ data Expr typeinfo = VarExpr    Symbol
                    | LetrecExpr [Def typeinfo]      (Expr typeinfo)
                    | FatbarExpr (Expr typeinfo)     (Expr typeinfo)
                    | CaseExpr   (Expr typeinfo)     [(Pattern typeinfo, Expr typeinfo)]
+                   | HasType    (Expr typeinfo)     Type
                      deriving (Show, Eq)
 
 type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
+data Type = Type Symbol [Type] deriving (Show, Eq)
+
+applyToChildren :: (Expr typeinfo -> Expr typeinfo) -> Expr typeinfo -> Expr typeinfo
+applyToChildren f (AppExpr e1 e2)     = AppExpr (f e1) (f e2)
+applyToChildren f (AbstrExpr x e)     = AbstrExpr x (f e)
+applyToChildren f (LetExpr def e)     = LetExpr def (f e)
+applyToChildren f (LetrecExpr defs e) = LetrecExpr defs (f e)
+applyToChildren f (FatbarExpr e1 e2)  = FatbarExpr (f e1) (f e2)
+applyToChildren f (CaseExpr e cs)     = CaseExpr (f e) [(p, f e') | (p, e') <- cs]
+applyToChildren f (HasType e t)       = HasType (f e) t
 
 -- Given an ELC expression with no type information, return the expression
 -- with type information.
@@ -42,6 +51,7 @@ fillInTypeInfo g e =
              <$> fillInTypeInfo g s
              <*> sequence
                  (map (\(p,e)->(,) <$> fillInPatTypeInfo g p <*> h e) cases)
+      (HasType e t)       -> HasType <$> h e <*> pure t
     where
       h = fillInTypeInfo g
       fillInDefTypeInfo :: Def () -> Either ConstructorUndefinedError (Def TypeDef)
@@ -54,6 +64,10 @@ getConstrConstant f s = join $ getFromTypeDef <$> f s
       getFromTypeDef (TypeDef _ constrs) = do
         (index, constr) <- find ((==s) . getConstrName . snd) (zip [0..] constrs)
         return $ ConstrConst (DataTag index) (length $ getConstrFields constr)
+
+dropTypeAnnotations :: Expr typeinfo -> Expr typeinfo
+dropTypeAnnotations (HasType e _) = e
+dropTypeAnnotations e = applyToChildren dropTypeAnnotations e
 
 -- Convenience function to transform a list of patterns and an expression
 -- into a single nested abstraction.

@@ -46,6 +46,7 @@ executable ip
                        Pattern,
                        Symbol,
                        TypeDef,
+                       TypedProgram,
                        Reduce,
                        ResultType
                        
