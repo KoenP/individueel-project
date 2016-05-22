@@ -1,4 +1,4 @@
-module EnrichedLambdaParse (parseExpr, unsafeParseExpr) where
+module EnrichedLambdaParse (parseExpr, unsafeParseExpr, exprParser) where
 import EnrichedLambda
 import Constant
 import Pattern
@@ -95,8 +95,16 @@ exprParser = m_whiteSpace >> expr <* eof
                      return (p, e)
 
       -- Parses a subexpression, more specifically either a fat bar ([])
-      -- application or a regular application.
-      subexpr = buildExpressionParser table term
+      -- application or a regular application, with an optional type
+      -- annotation.
+      subexpr = do e <- buildExpressionParser table term
+                   option e (do m_reservedOp "::"
+                                t <- typeExpr
+                                return $ HasType e t)
+                   
+      -- Parses a type annotation.
+      typeExpr = Type <$> m_identifier <*> many (simpleTypeExpr <|> m_parens typeExpr)
+      simpleTypeExpr = Type <$> m_identifier <*> pure []
 
       -- Terms in a subexpression are either variables or expressions in parens.
       term = constExpr <|> varExpr <|> m_parens expr
@@ -153,6 +161,6 @@ ldef = emptyDef { identStart      = letter <|> oneOf "+-*/="
                 , identLetter     = alphaNum <|> oneOf "+-*/="
                 , reservedNames   = ["let", "letrec", "in", "case", "of",
                                      "+", "-", "=", "IF", "_", "*"]
-                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";"]
+                , reservedOpNames = ["\\", ".", "->", "[]", ",", ";", "::"]
                 , caseSensitive   = True
                 }

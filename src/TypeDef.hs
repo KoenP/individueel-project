@@ -72,16 +72,15 @@ unsafeParseTypeDef s = let (Right td) = parseTypeDef s in td
 
 -- Parser for type definitions.
 typeDefParser :: Parser [TypeDef]
-typeDefParser = m_whiteSpace >> many def <* eof
-    where
-      def = do m_reserved "data"
-               s <- m_identifier
-               m_reservedOp "="
-               cs <- sepBy1 constructor (m_reservedOp "|")
-               m_reservedOp ";"
-               return (TypeDef s cs)
+typeDefParser = many typeDef 
+    where typeDef = do m_reserved "data"
+                       s <- m_identifier
+                       m_reservedOp "="
+                       cs <- sepBy1 constructorParser (m_reservedOp "|")
+                       m_reservedOp ";"
+                       return (TypeDef s cs)
 
-      constructor = Constructor <$> m_identifier <*> many m_identifier
+constructorParser = Constructor <$> m_identifier <*> many m_identifier
 
 -- Record that holds lexical parsers.
 -- Parsec builds the token parser for us from a language definition.

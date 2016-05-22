@@ -12,34 +12,28 @@ import qualified Data.Set as Set
 import Data.Function (fix)
 
 -- An expression in the enriched lambda calculus.
-data ExprF typeinfo e = VarExpr    Symbol
-                      | ConstExpr  Constant
-                      | AppExpr    e                   e
-                      | AbstrExpr  (Pattern typeinfo)  e
-                      | LetExpr    (DefF typeinfo e)   e
-                      | LetrecExpr [DefF typeinfo e]   e
-                      | FatbarExpr e                   e
-                      | CaseExpr   e                   [(Pattern typeinfo, e)]
-                        deriving Functor
-instance (Show typeinfo, Show e) => Show (ExprF typeinfo e) where
-    show (VarExpr x) = "VarExpr " ++ x
-    show (ConstExpr c) = "ConstExpr " ++ show c
-    show (AppExpr e f) = "AppExpr " ++ show e ++ " " ++ show f
+data Expr typeinfo = VarExpr    Symbol
+                   | ConstExpr  Constant
+                   | AppExpr    (Expr typeinfo)     (Expr typeinfo)
+                   | AbstrExpr  (Pattern typeinfo)  (Expr typeinfo)
+                   | LetExpr    (Def typeinfo)      (Expr typeinfo)
+                   | LetrecExpr [Def typeinfo]      (Expr typeinfo)
+                   | FatbarExpr (Expr typeinfo)     (Expr typeinfo)
+                   | CaseExpr   (Expr typeinfo)     [(Pattern typeinfo, Expr typeinfo)]
+                   | HasType    (Expr typeinfo)     Type
+                     deriving (Show, Eq)
 
-type DefF typeinfo e = (Pattern typeinfo, e) -- Definition
-type Def typeinfo = DefF typeinfo (Expr typeinfo)
-type AnnExpr typeinfo ann = Fix (Ann ann (ExprF typeinfo))
-type Expr typeinfo = Fix (ExprF typeinfo) -- Normal ELC expression
+type Def typeinfo = (Pattern typeinfo, Expr typeinfo) -- Definition
+data Type = Type Symbol [Type] deriving (Show, Eq)
 
--- Pseudoconstructor boilerplate.
-varExpr           = In . VarExpr
-constExpr         = In . ConstExpr
-appExpr e f       = In (AppExpr e f)
-abstrExpr x f     = In (AbstrExpr x f)
-letExpr def e     = In (LetExpr def e)
-letrecExpr defs e = In (LetrecExpr defs e)
-fatbarExpr e f    = In (FatbarExpr e f)
-caseExpr e cs     = In (CaseExpr e cs)
+applyToChildren :: (Expr typeinfo -> Expr typeinfo) -> Expr typeinfo -> Expr typeinfo
+applyToChildren f (AppExpr e1 e2)     = AppExpr (f e1) (f e2)
+applyToChildren f (AbstrExpr x e)     = AbstrExpr x (f e)
+applyToChildren f (LetExpr def e)     = LetExpr def (f e)
+applyToChildren f (LetrecExpr defs e) = LetrecExpr defs (f e)
+applyToChildren f (FatbarExpr e1 e2)  = FatbarExpr (f e1) (f e2)
+applyToChildren f (CaseExpr e cs)     = CaseExpr (f e) [(p, f e') | (p, e') <- cs]
+applyToChildren f (HasType e t)       = HasType (f e) t
 
 -- Given an ELC expression with no type information, return the expression
 -- with type information.
@@ -60,6 +54,7 @@ fillInTypeInfo g e =
              <$> fillInTypeInfo g s
              <*> sequence
                  (map (\(p,e)->(,) <$> fillInPatTypeInfo g p <*> h e) cases)
+      (HasType e t)       -> HasType <$> h e <*> pure t
     where
       h = fillInTypeInfo g
       fillInDefTypeInfo (p,e) = (,) <$> fillInPatTypeInfo g p <*> h e
@@ -71,6 +66,10 @@ getConstrConstant f s = join $ getFromTypeDef <$> f s
       getFromTypeDef (TypeDef _ constrs) = do
         (index, constr) <- find ((==s) . getConstrName . snd) (zip [0..] constrs)
         return $ ConstrConst (DataTag index) (length $ getConstrFields constr)
+
+dropTypeAnnotations :: Expr typeinfo -> Expr typeinfo
+dropTypeAnnotations (HasType e _) = e
+dropTypeAnnotations e = applyToChildren dropTypeAnnotations e
 
 -- Convenience function to transform a list of patterns and an expression
 -- into a single nested abstraction.
