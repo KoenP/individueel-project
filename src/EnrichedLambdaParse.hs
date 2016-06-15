@@ -1,5 +1,6 @@
 module EnrichedLambdaParse (parseExpr, unsafeParseExpr, exprParser) where
 import EnrichedLambda
+import TypeDef (TypeDef(..), Type(..))
 import Constant
 import Pattern
 import Text.Parsec
@@ -7,6 +8,7 @@ import Text.Parsec.String
 import Text.Parsec.Expr
 import Text.Parsec.Token
 import Text.Parsec.Language
+import Data.Char (isUpper)
 
 -- Parses a String into an extended lambda expression.
 -- There are multiple valid notations for the lambda calculus.
@@ -103,8 +105,14 @@ exprParser = m_whiteSpace >> expr <* eof
                                 return $ HasType e t)
                    
       -- Parses a type annotation.
-      typeExpr = Type <$> m_identifier <*> many (simpleTypeExpr <|> m_parens typeExpr)
-      simpleTypeExpr = Type <$> m_identifier <*> pure []
+      typeExpr = try (m_parens functionTypeExpr)
+                 <|> (DataType <$> m_identifier
+                               <*> many (simpleTypeExpr <|> m_parens typeExpr))
+      functionTypeExpr = sepBy1 typeExpr (m_reservedOp "->")
+      simpleTypeExpr = do id <- m_identifier
+                          if isUpper (head id)
+                          then return (DataType id [])
+                          else return (TypeVar id)
 
       -- Terms in a subexpression are either variables or expressions in parens.
       term = constExpr <|> varExpr <|> m_parens expr
