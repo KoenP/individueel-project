@@ -4,17 +4,18 @@ import Constant
 import Pattern
 import TypeDef
 import EnrichedLambda
+import EnrichedLambdaParse
 import Data.List ((\\), elem, nub)
 import Data.Maybe (fromJust)
 import Control.Monad (join)
 
 type Subst = Symbol -> Type
-data TypeScheme = TypeScheme [Symbol] Type
+data TypeScheme = TypeScheme [Symbol] Type deriving (Show)
 type TypeEnv = [(Symbol, TypeScheme)]
 --type VExpr = Expr TypeDef
 --type VDef = Def TypeDef
 type NameSupply = [Int]
-type VDef = [(Symbol,VExpr)]
+type VDef = (Symbol,VExpr)
 data VExpr = Var Symbol
            | App VExpr VExpr
            | Abstr Symbol VExpr
@@ -22,14 +23,13 @@ data VExpr = Var Symbol
            | Letrec [VDef] VExpr
            deriving (Show, Eq)
 
-simplifyExpr :: TypeEnv -> Expr TypeDef -> (VExpr, TypeEnv)
+simplifyExpr :: TypeEnv -> Expr () -> (VExpr, TypeEnv)
 simplifyExpr te expr
   = case expr of
       (VarExpr x) -> (Var x, te)
-      (ConstExpr c) -> let v = show c
+      (ConstExpr c) -> let v = showConstant c
                            phi = delta v (constantType c)
-                       in (Var v, sub_scheme phi te)
-
+                       in (Var v, sub_te phi te)
 
 constantType :: Constant -> Type
 constantType c = case c of
@@ -248,7 +248,7 @@ tclambda1 tvn (Just (phi,t)) = Just (phi, (phi tvn) `arrow` t)
 new_bvar (x,tvn) = (x, TypeScheme [] (TypeVar tvn))
 
 tclet :: TypeEnv -> NameSupply -> VDef -> VExpr -> Maybe (Subst, Type)
-tclet gamma ns (VarPat x, e') e = tclet1 gamma ns0 x e (tcl gamma ns1 [e'])
+tclet gamma ns (x, e') e = tclet1 gamma ns0 x e (tcl gamma ns1 [e'])
   where (ns0,ns1) = split ns
 
 tclet1 gamma ns x e Nothing = Nothing
@@ -273,7 +273,7 @@ genbar unknowns ns t = TypeScheme (map snd al) t'
 
 tcletrec :: TypeEnv -> NameSupply -> [VDef] -> VExpr -> Maybe (Subst, Type)
 tcletrec gamma ns defs e = tcletrec1 gamma ns0 nbvs e (tcl (nbvs ++ gamma) ns1 es)
-  where (xs, es)   = unzip [ (x, e) | (VarPat x, e) <- defs ]
+  where (xs, es)   = unzip defs
         (ns0, ns') = split ns
         (ns1, ns2) = split ns'
         nbvs       = new_bvars xs ns2
