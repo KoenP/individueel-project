@@ -17,7 +17,7 @@ extra-source-files:  reduction-engine/csrc/reduce.c
                      reduction-engine/include/print.h
 
 library
-  ghc-options:         -optc -Wall -O
+  ghc-options:         -optc -Wall
   hs-source-dirs:      reduction-engine/src
   exposed-modules:     ReductionEngine
   c-sources:           reduction-engine/csrc/reduce.c
@@ -61,4 +61,6 @@ executable ip
                        graphviz,
                        fgl,
                        text,
+                       ghci-pretty,
+                       ipprint,
                        individueel-project

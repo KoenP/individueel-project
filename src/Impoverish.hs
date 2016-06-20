@@ -103,7 +103,7 @@ impoverish (EL.LetrecExpr defs e)
     -- impoverish on the result. (p114)
     | all (irrefutable . fst) defs
         = let nTupType   = tupleType (length defs)
-              nTupConstr = head $ getTypeConstructors nTupType
+              nTupConstr = head $ getTypeDefConstructors nTupType
               nTupConstrName = getConstrName nTupConstr
               p = ConstrPat nTupType nTupConstrName (map fst defs)
               b = EL.makeApp
@@ -134,7 +134,7 @@ impoverish (EL.CaseExpr expr cs)
     = case cs of
         -- Case expressions involving a product type (p122 6.3.1).
         -- possible optimization p124 6.3.3 
-        [(ConstrPat (TypeDef _ [constr]) sym vs, e1)]
+        [(ConstrPat (TypeDef _ _ [constr]) sym vs, e1)]
             -> let arity = length $ getConstrFields constr
                    unpack = EL.AppExpr (EL.ConstExpr UnpackProductConst)
                                        (EL.ConstExpr (IntConst arity)) -- XXX
@@ -147,7 +147,7 @@ impoverish (EL.CaseExpr expr cs)
         -- NOTE: using alternative implementation with [] and FAIL.
         -- XXX
         otherwise -> let (ConstrPat tdef _ _) = fst $ head cs
-                         n = length (getTypeConstructors tdef)
+                         n = length (getTypeDefConstructors tdef)
                          tag sym = fromJust (getStructureTag tdef sym)
                          arity sym = fromJust (getConstructorArity tdef sym)
                          unpack (ConstrPat _ si vs, e)
@@ -182,7 +182,7 @@ conformalityTransformation (pat@(ConstrPat tdef sym pats), b) = (rhs, lhs)
                                             (EL.VarExpr $ head vars)
                                             (map EL.VarExpr $ tail vars)
       n = length (getConstrFields nTupConstr)
-      nTupConstr = head $ getTypeConstructors nTupType
+      nTupConstr = head $ getTypeDefConstructors nTupType
       nTupType = tupleType (length vars)
       vars = toList (patVariables pat)
 
@@ -192,7 +192,7 @@ conformalityTransformation (pat@(ConstrPat tdef sym pats), b) = (rhs, lhs)
 --    are irrefutable patterns.
 irrefutable :: Pattern TypeDef -> Bool
 irrefutable (VarPat _)                       = True
-irrefutable (ConstrPat (TypeDef _ [_]) _ ps) = all irrefutable ps
+irrefutable (ConstrPat (TypeDef _ _ [_]) _ ps) = all irrefutable ps
 irrefutable _                                = False
 
 -- Literally lift a simple lambda expression into the enriched lambda calculus.

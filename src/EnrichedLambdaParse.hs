@@ -106,9 +106,12 @@ exprParser = m_whiteSpace >> expr <* eof
                    
       -- Parses a type annotation.
       typeExpr = try (m_parens functionTypeExpr)
-                 <|> (DataType <$> m_identifier
-                               <*> many (simpleTypeExpr <|> m_parens typeExpr))
-      functionTypeExpr = sepBy1 typeExpr (m_reservedOp "->")
+                 <|> (do id <- m_identifier
+                         if isUpper (head id)
+                         then DataType id <$> many (simpleTypeExpr <|> m_parens typeExpr)
+                         else return (TypeVar id))
+      functionTypeExpr = do ftypes <- sepBy1 typeExpr (m_reservedOp "->")
+                            return $ foldr1 FunctionType ftypes
       simpleTypeExpr = do id <- m_identifier
                           if isUpper (head id)
                           then return (DataType id [])
