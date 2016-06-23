@@ -17,7 +17,7 @@
 
 \begin{document}
 \lstset{language=Haskell}
-\title{Verslag 2: Lazy evaluation door middel van graafreductie}
+\title{Verslag 3: Typesysteem met polymorfisme en inferentie}
 \author{Koen Pauwels}
 \maketitle
 
@@ -112,7 +112,7 @@ Wanneer er een uitbreiding \texttt{psi} bestaat van \texttt{phi} die een idempot
 Het algoritme staat ons toe een substitutie die een oplossing biedt voor een systeem van k vergelijkingen uit te breiden naar een substitutie die een oplossing biedt voor een systeem van k+1 vergelijkingen.
 
 \subsection{De type environment}
-We associ{\"e}ren met elke variabele een soort template waarin we twee soorten typevariabelen onderscheiden worden: schematische en niet-schematische.
+We associ{\"e}ren met elke variabele een soort template-type waarin twee soorten typevariabelen onderscheiden worden: schematische en niet-schematische.
 Dit template noemen we een \emph{typeschema}.
 De schematische typevariabelen in een typeschema geassocieerd met een variabele zijn de typevariabelen die vrij mogen worden geinstantieerd om te conformeren met de type constraints op de verschillende voorvallen van die variabele.
 De niet-schematische typevariabelen zijn constrained, en mogen niet geinstantieerd worden wanneer het typeschema geinstantieerd wordt.
@@ -135,7 +135,47 @@ De typechecker zal een functie zijn van de vorm \texttt{(tc gamma ns e)} met
   \item \texttt{ns} is een bron van nieuwe typevariabelenamen.
   \item \texttt{e} is de expressie die we gaan typechecken.
 \end{itemize}
+\begin{lstlisting}[language=Haskell,frame=single]
+  tc :: TypeEnv -> NameSupply -> VExpr
+     -> Maybe (Subst, Type)
+\end{lstlisting}
 Als de expressie goed getypeerd is, zal het typecheck algoritme een substitutie voor de onbekenden teruggeven, en een type voor e.
 Het algoritme zal uiteenvallen in een geval voor elk van de 5 constructies die ondersteund worden door de intermediaire taal.
+
+\subsubsection{Variabelen typechecken}
+We beginnen met het typeschema op te zoeken dat geassocieerd is met deze variabele.
+In het type van het typeschema kunnen schematische variabelen en onbekenden voorkomen.
+\paragraph{}
+We wijzen een type toe aan de variabele als volgt: de schematische variabelen worden vervangen door een nieuwe, unieke typevariabele; de onbekenden worden gelaten zoals ze zijn.
+\paragraph{}
+De typechecker geeft als substitutie de identiteitssubstitutie terug. Het typechecken van variabelen geeft geen informatie over onbekenden.
+
+\subsubsection{Applicaties typechecken}
+Eerst trachten we een substitutie \texttt{phi} te construeren die de type constraints op de twee deelexpressies samen oplost.
+Stel vervolgens dat \texttt{t1} en \texttt{t2} de types zijn die afgeleid zijn voor e1 en e2 (door recursief de typechecker op de deelexpressies op te roepen), dan kunnen we de typecheck afronden door een uitbreiding van \texttt{phi} te construeren die ook aan de constraint \texttt{t1 = t2 -> t'} (met t' een nieuwe typevariabele) voldoet.
+\paragraph{}
+Het uiteindelijke type dat aan de applicatie toegewezen zal worden, wordt gevonden door de substitutiefunctie aan het einde van deze stappen toe te passen op \texttt{t'}.
+
+\subsubsection{Lambda abstracties typechecken}
+We typechecken de expressie \texttt{($\lambda$ x.e)}
+Zoals eerder gezegd wensen we op te leggen dat elk voorval van de formele parameter x van de abstractie in het lichaam hetzelfde type opgelegd krijgt.
+We bekomen dit door in de type environment met de formele parameter een typeschema te associ{\"e}ren dat een nieuwe typevariabele introduceert die niet schematisch is.
+In de type environment vinden we dus de entry \texttt{(``x'', TypeScheme [] (TypeVar tvn))} terug, met tvn een nieuwe type variable name.
+\paragraph{}
+Deze aangepaste type environment \texttt{gamma'} wordt dan meegegeven met de recursieve oproep die het type van het lichaam van de abstractie zal bepalen.
+
+\subsubsection{Let(rec) expressies typechecken}
+In de expressie \texttt{let x = e' in e} achterhalen we eerst het type van \texttt{e'}.
+We updaten de environment met het gepaste typeschema voor x en typechecken tenslotte \texttt{e}.
+\paragraph{}
+Het geval voor letrec expressies is complexer.
+\begin{itemize}
+\item We beginnen met nieuwe typeschema's te verbinden aan de linkerleden van de definities. Deze schema's hebben geen schematische variabelen, aangezien we vereisen dat de voorvallen van een naam in de rechterzijde van zijn eigen definitie allemaal hetzelfde type moeten hebben.
+\item We typechecken de rechterzijdes, wat ons een substitutie en een lijst van types oplevert.
+\item We passen unify toe op de de types die afgeleid zijn voor de rechterzijdes met de overeenkomstige variabelen aan de linkerzijdes in de context van de substitutie die we bekomen hebben met de vorige stap.
+\item Nu zijn de definities verwerkt en is de situatie analoog aan die van een gewone let expressie. We moeten enkel nog het lichaam \texttt{e} updaten.
+\end{itemize}
+\paragraph{}
+Dit vervolledigt de definitie van de type checker.
 
 \end{document}

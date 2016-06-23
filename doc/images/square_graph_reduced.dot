@@ -1,0 +1,7 @@
+digraph {
+	param [label="3"];
+	prod [label="*"];
+	
+	prod -> param;
+	prod -> param;
+}

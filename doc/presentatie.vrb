@@ -1,0 +1,8 @@
+\frametitle{Reductie: waarom een graaf?}
+  \begin{lstlisting}
+(\x.AND x x) (NOT TRUE)
+-> AND (NOT TRUE) (NOT TRUE)
+-> AND FALSE (NOT TRUE)
+-> AND FALSE FALSE
+-> FALSE
+  \end{lstlisting}

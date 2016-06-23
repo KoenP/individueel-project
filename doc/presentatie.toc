@@ -1,0 +1,5 @@
+\beamer@endinputifotherversion {3.36pt}
+\select@language {dutch}
+\beamer@sectionintoc {1}{Introductie}{2}{0}{1}
+\beamer@sectionintoc {2}{Verrijkte lambdacalculus naar lambdacalculus}{7}{0}{2}
+\beamer@sectionintoc {3}{Reductie}{11}{0}{3}

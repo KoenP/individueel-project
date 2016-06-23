@@ -26,19 +26,20 @@ type ConstructorLookup = Symbol -> Maybe TypeDef
 
 main :: IO ()
 main = do
+  (printMode : args) <- getArgs
   runMode <- fmap parseArgs getArgs
   typedefs <- readTypeDefinitions "typedefs"
-  run (getConstructorType typedefs) runMode
+  run (getConstructorType typedefs) runMode printMode
       
 
-run :: ConstructorLookup -> RunMode -> IO ()
+run :: ConstructorLookup -> RunMode -> String -> IO ()
 --run cl Dot = interact (lambdaToDot
 --                       . impoverish
 --                       . stripError
 --                       . fillInTypeInfo cl
 --                       . stripError
 --                       . parseExpr)
-run cl Repl = repl cl (\e -> print e >> reduce e (ListResult IntResult))
+run cl Repl printMode = repl cl (\e -> {- print e >> lambdaViz e >> -} reduce e printMode)
        
 repl :: ConstructorLookup -> (L.Expr -> IO ()) -> IO ()
 repl constrLookup process = do
